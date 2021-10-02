@@ -162,23 +162,23 @@ case "$archive_path" in
 
 		case "$archive_path" in
 			*.bz )
-				remove_suffix_pattern='.bz'
+				remove_suffix='.bz'
 				run="bunzip2"
 				;;
 			*.bz2 )
-				remove_suffix_pattern='.bz2'
+				remove_suffix='.bz2'
 				run="bunzip2"
 				;;
 			*.gz )
-				remove_suffix_pattern='.gz'
+				remove_suffix='.gz'
 				run="gunzip"
 				;;
 			*.xz )
-				remove_suffix_pattern='.xz'
+				remove_suffix='.xz'
 				run="unxz"
 				;;
 			*.lzma )
-				remove_suffix_pattern='.lzma'
+				remove_suffix='.lzma'
 				run="unlzma"
 				;;
 		esac
@@ -200,7 +200,7 @@ case "$archive_path" in
 		;;
 	*.lz )
 		must_mkdir=y
-		remove_suffix_pattern='.lz'
+		remove_suffix='.lz'
 
 		if [ -n "$output_dir" ]; then
 			must_rm=y
@@ -233,7 +233,7 @@ case "$archive_path" in
 		;;
 	*.Z )
 		must_mkdir=y
-		remove_suffix_pattern='.Z'
+		remove_suffix='.Z'
 
 		run="uncompress"
 
@@ -331,7 +331,7 @@ output_dir_arg="$(quote_if_needed "$output_dir")"
 password_arg="$(quote_if_needed "$password")"
 
 base_name="$(basename -- "$archive_path")"
-base_name_no_ext="${base_name%$remove_suffix_pattern}"
+base_name_no_ext="${base_name%$remove_suffix}"
 case "$output_dir" in
 	'' )
 		output_path="$base_name_no_ext"
