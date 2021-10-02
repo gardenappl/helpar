@@ -2,6 +2,7 @@
 
 set -o errexit
 
+# Function from dylanaraps' pure sh bible
 # shellcheck disable=SC2086,SC2048
 trim_all() {
 	# Usage: trim_all "   example   string    "
@@ -98,7 +99,7 @@ case "$archive_path" in
 				;;
 		esac
 
-		# unzip does not recognize --
+		# Info-ZIP does not recognize --
 		archive_path_handle_dash=leading-dot
 		run="$run ARCHIVE_PATH"
 
