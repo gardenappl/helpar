@@ -39,8 +39,8 @@ simplify_home() {
 }
 
 
-options=h1v
-longopts=help,oneline,verbose
+options=h1
+longopts=help,oneline
 parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
 eval set -- "$parsed"
 
@@ -136,23 +136,19 @@ esac
 
 archive_path_arg="$(simplify_home "$archive_path")"
 archive_path_arg="$(quote_if_needed "$archive_path")"
-password_arg="$(quote_if_needed "$password")"
 
 
 awk_program='{
 	gsub("ARCHIVE_PATH", archive_path);
-	gsub("PASSWORD", password);
 	print;
 }'
 
 if [ -z "$dont_print_command" ]; then
 	# Pretty string starts as bright blue, then reset at the end
 	# Arguments in pretty string are green, then the following text is bright blue
-	# Password in pretty string is red
 
 	echo "\033[38;5;12m$run\033[m" | >&2 awk \
 		--assign archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
-		--assign password="\033[38;5;1mPLAINTEXT_PASSWORD\033[38;5;12m" \
 		"$awk_program"
 	>&2 echo
 fi
@@ -160,7 +156,6 @@ fi
 
 run_command="$(echo "$run" | awk \
 	--assign archive_path="$archive_path_arg_prefix$archive_path_arg" \
-	--assign password="$password_arg" \
 	"$awk_program")"
 
 ( eval "$run_command" )
