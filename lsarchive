@@ -1,0 +1,166 @@
+#!/bin/sh
+
+set -o errexit
+
+# Function from dylanaraps' pure sh bible
+# shellcheck disable=SC2086,SC2048
+trim_all() {
+	# Usage: trim_all "   example   string    "
+
+	# Disable globbing to make the word-splitting below safe.
+	set -f
+
+	# Set the argument list to the word-splitted string.
+	# This removes all leading/trailing white-space and reduces
+	# all instances of multiple spaces to a single ("  " -> " ").
+	set -- $*
+
+	# Print the argument list as a string.
+	printf '%s\n' "$*"
+
+	# Re-enable globbing.
+	set +f
+}
+
+quote_if_needed() {
+	# Check if argument has whitespace
+	case "$(trim_all "$1")" in
+		*' '* )
+			echo "'$1'"
+			;;
+		* )
+			echo "$1"
+			;;
+	esac
+}
+
+simplify_home() {
+	echo "$1" awk --assign home="$HOME" '{ sub("^"home, "~"); print }'
+}
+
+
+options=h1v
+longopts=help,oneline,verbose
+parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
+eval set -- "$parsed"
+
+
+while true; do
+	case "$1" in 
+		-1 | --oneline )
+			one_line=y
+			shift
+			;;
+		-v | --verbose )
+			verbose=y
+			shift
+			;;
+		-- )
+			shift
+			archive_path="$1"
+			break
+			;;
+	esac
+done
+
+
+# We will manually replace ARCHIVE_PATH, etc with the needed arguments
+# (with or without color formatting)
+
+case "$archive_path" in
+	*.zip )
+		# Info-ZIP does not recognize --
+		archive_path_handle_dash=leading-dot
+		if [ -n "$one_line" ]; then
+			run="zipinfo -1 ARCHIVE_PATH"
+		else
+			run="zipinfo ARCHIVE_PATH"
+		fi
+		;;
+	*.rar )
+		archive_path_handle_dash=double-dash
+		if [ -n "$one_line" ]; then
+			run="unrar lb ARCHIVE_PATH"
+		else
+			run="unrar l ARCHIVE_PATH"
+		fi
+		;;
+	*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
+		archive_path_handle_dash=double-dash
+		if [ -n "$one_line" ]; then
+			run="tar tf ARCHIVE_PATH"
+		else
+			run="tar tvf ARCHIVE_PATH"
+		fi
+		;;
+	*.bz2 | *.bz | *.gz | *.xz | *.lzma | *.lz | *.lzo | *.Z )
+		dont_print_command=y
+		if [ -n "$one_line" ]; then
+			run="printf '%s' ARCHIVE_PATH | sed 's/\.[^.].$//'"
+		else
+			run="echo 'ARCHIVE_PATH is just a single compressed file.'"
+		fi
+		;;
+	* )
+		case "$archive_path" in
+			*.7z )
+				# Using 7z is perfectly fine
+				;;
+			* )
+				>&2 echo "Don't know the proper tool for $archive_path, let's just try 7z"
+				;;
+		esac
+
+		archive_path_handle_dash='double-dash'
+		if [ -n "$one_line" ]; then
+			run="7z l -slt -ba ARCHIVE_PATH | grep '^Path = ' | cut -d' ' -f3-"
+		else
+			run="7z l ARCHIVE_PATH"
+		fi
+		;;
+esac
+
+
+case "$archive_path" in
+	-* )
+		if [ "$archive_path_handle_dash" = 'double-dash' ]; then
+			archive_path_arg_prefix="-- "
+		elif [ "$archive_path_handle_dash" = 'leading-dot' ]; then
+			archive_path="./$archive_path"
+		fi
+		;;
+	* )
+		;;
+esac
+
+
+archive_path_arg="$(simplify_home "$archive_path")"
+archive_path_arg="$(quote_if_needed "$archive_path")"
+password_arg="$(quote_if_needed "$password")"
+
+
+awk_program='{
+	gsub("ARCHIVE_PATH", archive_path);
+	gsub("PASSWORD", password);
+	print;
+}'
+
+if [ -z "$dont_print_command" ]; then
+	# Pretty string starts as bright blue, then reset at the end
+	# Arguments in pretty string are green, then the following text is bright blue
+	# Password in pretty string is red
+
+	echo "\033[38;5;12m$run\033[m" | >&2 awk \
+		--assign archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
+		--assign password="\033[38;5;1mPLAINTEXT_PASSWORD\033[38;5;12m" \
+		"$awk_program"
+	>&2 echo
+fi
+
+
+run_command="$(echo "$run" | awk \
+	--assign archive_path="$archive_path_arg_prefix$archive_path_arg" \
+	--assign password="$password_arg" \
+	"$awk_program")"
+
+( eval "$run_command" )
