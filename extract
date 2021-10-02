@@ -310,10 +310,10 @@ case "$output_dir" in
 esac
 
 
-archive_path_arg="$(simplify_home "$archive_path")"
 archive_path_arg="$(quote_if_needed "$archive_path")"
-output_dir_arg="$(simplify_home "$output_dir")"
+archive_path_arg="$(simplify_home "$archive_path")"
 output_dir_arg="$(quote_if_needed "$output_dir")"
+output_dir_arg="$(simplify_home "$output_dir")"
 password_arg="$(quote_if_needed "$password")"
 
 base_name="$(basename -- "$archive_path")"

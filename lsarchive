@@ -134,8 +134,8 @@ case "$archive_path" in
 esac
 
 
-archive_path_arg="$(simplify_home "$archive_path")"
 archive_path_arg="$(quote_if_needed "$archive_path")"
+archive_path_arg="$(simplify_home "$archive_path")"
 
 
 awk_program='{
