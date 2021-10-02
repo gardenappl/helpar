@@ -359,13 +359,13 @@ awk_program='{
 # Arguments in pretty string are green, then the following text is bright blue
 # Password in pretty string is red
 
-echo "\033[38;5;12m$run\033[m" | awk \
+echo "\033[38;5;12m$run\033[m" | >&2 awk \
 	--assign archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
 	--assign output_dir="\033[38;5;2m$output_dir_arg\033[38;5;12m" \
 	--assign output_path="\033[38;5;2m$output_path_arg\033[38;5;12m" \
 	--assign password="\033[38;5;1mPLAINTEXT_PASSWORD\033[38;5;12m" \
 	"$awk_program"
-echo
+>&2 echo
 
 
 run_command="$(echo "$run" | awk \
