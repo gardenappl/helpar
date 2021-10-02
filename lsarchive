@@ -35,7 +35,7 @@ quote_if_needed() {
 }
 
 simplify_home() {
-	echo "$1" awk --assign home="$HOME" '{ sub("^"home, "~"); print }'
+	echo "$1" | awk --assign home="$HOME" '{ sub("^"home, "~"); print }'
 }
 
 
@@ -96,7 +96,7 @@ case "$archive_path" in
 	*.bz2 | *.bz | *.gz | *.xz | *.lzma | *.lz | *.lzo | *.Z )
 		dont_print_command=y
 		if [ -n "$one_line" ]; then
-			run="printf '%s' ARCHIVE_PATH | sed 's/\.[^.].$//'"
+			run="printf '%s' ARCHIVE_PATH | sed 's/\.[^.]*$//'"
 		else
 			run="echo 'ARCHIVE_PATH is just a single compressed file.'"
 		fi
