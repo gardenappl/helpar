@@ -39,8 +39,8 @@ simplify_home() {
 }
 
 
-options=ho:X:p:fdq
-longopts=help,output-directory:,extract-to:,password:,force,force-overwrite,delete,quiet
+options=ho:X:p:fdqs
+longopts=help,output-directory:,extract-to:,password:,force,force-overwrite,delete,quiet,force-skip,skip
 parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
 eval set -- "$parsed"
 
@@ -60,6 +60,10 @@ while true; do
 			force=y
 			shift
 			;;
+		-s | --force-skip | --skip )
+			skip=y
+			shift
+			;;
 		-d | --delete )
 			delete=y
 			shift
@@ -76,6 +80,11 @@ while true; do
 	esac
 done
 
+if [ -n "$force" ] && [ -n "$skip" ]; then
+	>&2 echo "Error: can't --skip and --force-overwrite at the same time."
+	exit 1
+fi
+
 
 # We will manually replace ARCHIVE_PATH, etc with the needed arguments
 # (with or without color formatting)
@@ -87,6 +96,7 @@ case "$archive_path" in
 		run="unzip"
 
 		[ -n "$force" ] && run="$run -o"
+		[ -n "$skip" ] && run="$run -n"
 		[ -n "$quiet" ] && run="$run -q"
 		
 		# Handle password which starts with -
@@ -114,6 +124,7 @@ case "$archive_path" in
 		run="unrar x"
 
 		[ -n "$force" ] && run="$run -o+"
+		[ -n "$skip" ] && run="$run -o-" # Skips files but sometimes exits with an error anyway, sigh...
 		[ -n "$quiet" ] && run="$run -inul"
 		[ -n "$password" ] && run="$run -pPASSWORD"
 
@@ -130,8 +141,6 @@ case "$archive_path" in
 	*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
 		must_rm=y
 		must_mkdir=y
-
-		# tar always overwrites files, there's no need to handle --force
 
 		case "$archive_path" in
 			*.tar.gz | *.tgz )
@@ -150,11 +159,14 @@ case "$archive_path" in
 		archive_path_handle_dash=leading-dot
 		run="$run ARCHIVE_PATH"
 
+		# Skip existing files by default.
+		# No need to handle --skip option.
 		[ -z "$force" ] && run="$run --skip-old-files"
 		[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
 		;;
 	*.bz2 | *.bz | *.gz | *.xz | *.lzma )
 		must_mkdir=y
+		must_test_existing=y
 
 		case "$archive_path" in
 			*.bz )
@@ -191,6 +203,7 @@ case "$archive_path" in
 		;;
 	*.lz )
 		must_mkdir=y
+		must_test_existing=y
 		remove_suffix='.lz'
 
 		[ -n "$force" ] && run="$run --force"
@@ -209,6 +222,7 @@ case "$archive_path" in
 		;;
 	*.lzo )
 		must_mkdir=y
+		must_test_existing=y
 
 		run="lzop -x"
 
@@ -223,6 +237,7 @@ case "$archive_path" in
 		;;
 	*.Z )
 		must_mkdir=y
+		must_test_existing=y
 		remove_suffix='.Z'
 
 		run="uncompress"
@@ -231,7 +246,7 @@ case "$archive_path" in
 
 		# Let's be strictly POSIX-compliant in the case of .Z
 		archive_path_handle_dash=leading-dot
-		if [ -z "$delete" -o -n "$output_path" ]; then
+		if [ -z "$delete" ] || [ -n "$output_path" ]; then
 			run="$run -c ARCHIVE_PATH > OUTPUT_PATH"
 		else
 			run="$run ARCHIVE_PATH"
@@ -252,6 +267,7 @@ case "$archive_path" in
 		run="7z x"
 
 		[ -n "$force" ] && run="$run -aoa"
+		[ -n "$skip" ] && run="$run -aos"
 		[ -n "$output_dir" ] && run="$run -oOUTPUT_DIR"
 		[ -n "$password" ] && run="$run -pPASSWORD"
 
@@ -261,7 +277,7 @@ case "$archive_path" in
 esac
 
 # Manually remove archive on successful extraction
-if [ -n "$must_rm" -a -n "$delete" ]; then
+if [ -n "$must_rm" ] && [ -n "$delete" ]; then
 	case "$archive_path" in
 		-* )
 			run="$run && rm -- $archive_path"
@@ -270,6 +286,15 @@ if [ -n "$must_rm" -a -n "$delete" ]; then
 			run="$run && rm $archive_path"
 			;;
 	esac
+	used_and=y
+fi
+
+if [ -n "$must_test_existing" ] && [ -n "$skip" ]; then
+	if [ -n "$used_and" ]; then
+		run="[ -e OUTPUT_PATH ] || ( $run )"
+	else
+		run="[ -e OUTPUT_PATH ] || $run"
+	fi
 fi
 
 # Manually create output directory
