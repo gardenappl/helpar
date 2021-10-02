@@ -39,8 +39,8 @@ simplify_home() {
 }
 
 
-options=h1
-longopts=help,oneline
+options=h1c
+longopts=help,oneline,command
 parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
 eval set -- "$parsed"
 
@@ -53,6 +53,10 @@ while true; do
 			;;
 		-v | --verbose )
 			verbose=y
+			shift
+			;;
+		-c | --command )
+			only_command=y
 			shift
 			;;
 		-- )
@@ -143,7 +147,7 @@ awk_program='{
 	print;
 }'
 
-if [ -z "$dont_print_command" ]; then
+if [ -z "$only_command" ] && [ -z "$dont_print_command" ]; then
 	# Pretty string starts as bright blue, then reset at the end
 	# Arguments in pretty string are green, then the following text is bright blue
 
@@ -158,4 +162,8 @@ run_command="$(echo "$run" | awk \
 	--assign archive_path="$archive_path_arg_prefix$archive_path_arg" \
 	"$awk_program")"
 
-( eval "$run_command" )
+if [ -n "$only_command" ]; then
+	echo "$run_command"
+else
+	( eval "$run_command" )
+fi
