@@ -97,7 +97,7 @@ case "$archive_path" in
 			run="tar tvf ARCHIVE_PATH"
 		fi
 		;;
-	*.bz2 | *.bz | *.gz | *.xz | *.lzma | *.lz | *.lzo | *.Z )
+	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz | ?*.lzo | ?*.Z )
 		dont_print_pretty=y
 		if [ -n "$one_line" ]; then
 			run="printf '%s' ARCHIVE_PATH | sed 's/\.[^.]*$//'"
