@@ -56,7 +56,7 @@ while true; do
 			shift
 			;;
 		-c | --command )
-			only_command=y
+			only_print_command=y
 			shift
 			;;
 		-- )
@@ -98,7 +98,7 @@ case "$archive_path" in
 		fi
 		;;
 	*.bz2 | *.bz | *.gz | *.xz | *.lzma | *.lz | *.lzo | *.Z )
-		dont_print_command=y
+		dont_print_pretty=y
 		if [ -n "$one_line" ]; then
 			run="printf '%s' ARCHIVE_PATH | sed 's/\.[^.]*$//'"
 		else
@@ -147,7 +147,7 @@ awk_program='{
 	print;
 }'
 
-if [ -z "$only_command" ] && [ -z "$dont_print_command" ]; then
+if [ -z "$only_print_command" ] && [ -z "$dont_print_pretty" ]; then
 	# Pretty string starts as bright blue, then reset at the end
 	# Arguments in pretty string are green, then the following text is bright blue
 
@@ -162,7 +162,7 @@ run_command="$(echo "$run" | awk \
 	--assign archive_path="$archive_path_arg_prefix$archive_path_arg" \
 	"$awk_program")"
 
-if [ -n "$only_command" ]; then
+if [ -n "$only_print_command" ]; then
 	echo "$run_command"
 else
 	( eval "$run_command" )

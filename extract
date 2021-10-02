@@ -73,7 +73,7 @@ while true; do
 			shift
 			;;
 		-c | --command )
-			only_command=y
+			only_print_command=y
 			shift
 			;;
 		-- )
@@ -374,7 +374,7 @@ awk_program='{
 # Arguments in pretty string are green, then the following text is bright blue
 # Password in pretty string is red
 
-if [ -z "$only_command" ]; then
+if [ -z "$only_print_command" ]; then
 	echo "\033[38;5;12m$run\033[m" | >&2 awk \
 		--assign archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
 		--assign output_dir="\033[38;5;2m$output_dir_arg\033[38;5;12m" \
@@ -392,7 +392,7 @@ run_command="$(echo "$run" | awk \
 	--assign password="$password_arg" \
 	"$awk_program")"
 
-if [ -n "$only_command" ]; then
+if [ -n "$only_print_command" ]; then
 	echo "$run_command"
 else
 	( eval "$run_command" )
