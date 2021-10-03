@@ -2,34 +2,21 @@
 
 set -o errexit
 
-# Function from dylanaraps' pure sh bible
-# shellcheck disable=SC2086,SC2048
-trim_all() {
-	# Usage: trim_all "   example   string    "
 
-	# Disable globbing to make the word-splitting below safe.
-	set -f
+# Sanitize string so it's usable as an argument
+shell_quote() {
+	escaped=$(echo "$1" | sed "s/'/'\"'\"'/g")
 
-	# Set the argument list to the word-splitted string.
-	# This removes all leading/trailing white-space and reduces
-	# all instances of multiple spaces to a single ("  " -> " ").
-	set -- $*
-
-	# Print the argument list as a string.
-	printf '%s\n' "$*"
-
-	# Re-enable globbing.
-	set +f
-}
-
-quote_if_needed() {
-	# Check if argument has whitespace
-	case "$(trim_all "$1")" in
-		*' '* )
-			echo "'$1'"
+	case "$escaped" in
+		'' )
+			# Empty string
+			;;
+		*[![:alnum:]-_\./~]* )
+			# Argument contains characters which are not safe
+			echo "'$escaped'"
 			;;
 		* )
-			echo "$1"
+			echo "$escaped"
 			;;
 	esac
 }
@@ -138,7 +125,7 @@ case "$archive_path" in
 esac
 
 
-archive_path_arg="$(quote_if_needed "$archive_path")"
+archive_path_arg="$(shell_quote "$archive_path")"
 archive_path_arg="$(simplify_home "$archive_path_arg")"
 
 
