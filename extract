@@ -5,6 +5,7 @@ set -o errexit
 
 # Sanitize string so it's usable as an argument
 shell_quote() {
+	# Escape single quotes
 	escaped=$(echo "$1" | sed "s/'/'\"'\"'/g")
 
 	case "$escaped" in
@@ -12,10 +13,11 @@ shell_quote() {
 			# Empty string
 			;;
 		*[![:alnum:]-_\./~]* )
-			# Argument contains characters which are not safe
+			# Argument is not clean, needs quoting
 			echo "'$escaped'"
 			;;
 		* )
+			# Argument contains only safe characters
 			echo "$escaped"
 			;;
 	esac
