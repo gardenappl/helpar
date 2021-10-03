@@ -26,8 +26,8 @@ simplify_home() {
 }
 
 
-options=ho:X:p:fdqsc
-longopts=help,output-directory:,extract-to:,password:,force,force-overwrite,delete,quiet,force-skip,skip,command
+options=ho:X:p:fdqscS
+longopts=help,output-directory:,extract-to:,password:,force,force-overwrite,delete,quiet,force-skip,skip,command,simulate
 parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
 eval set -- "$parsed"
 
@@ -59,7 +59,7 @@ while true; do
 			quiet=y
 			shift
 			;;
-		-c | --command )
+		-c | --command | -S | --simulate )
 			only_print_command=y
 			shift
 			;;

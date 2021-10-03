@@ -26,8 +26,8 @@ simplify_home() {
 }
 
 
-options=h1c
-longopts=help,oneline,command
+options=h1cS
+longopts=help,oneline,command,simulate
 parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
 eval set -- "$parsed"
 
@@ -42,7 +42,7 @@ while true; do
 			verbose=y
 			shift
 			;;
-		-c | --command )
+		-c | --command | -S | --simulate )
 			only_print_command=y
 			shift
 			;;
