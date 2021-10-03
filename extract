@@ -82,7 +82,7 @@ fi
 
 case "$archive_path" in
 	*.zip )
-		must_rm=y
+		handle_delete_manually=y
 
 		run="unzip"
 
@@ -110,13 +110,13 @@ case "$archive_path" in
 		[ -n "$output_dir" ] && run="$run -d OUTPUT_DIR"
 		;;
 	*.rar )
-		must_rm=y
+		handle_delete_manually=y
 
 		run="unrar x"
 
 		[ -n "$force" ] && run="$run -o+"
 		[ -n "$skip" ] && run="$run -o-" # Skips files but sometimes exits with an error anyway, sigh...
-		[ -n "$quiet" ] && run="$run -inul"
+		[ -n "$quiet" ] && run="$run -idq"
 		[ -n "$password" ] && run="$run -pPASSWORD"
 
 		archive_path_handle_dash=double-dash
@@ -130,8 +130,8 @@ case "$archive_path" in
 		fi
 		;;
 	*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
-		must_rm=y
-		must_mkdir=y
+		handle_delete_manually=y
+		handle_output=mkdir
 
 		case "$archive_path" in
 			*.tar.gz | *.tgz )
@@ -155,65 +155,57 @@ case "$archive_path" in
 		[ -z "$force" ] && run="$run --skip-old-files"
 		[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
 		;;
-	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma )
-		must_mkdir=y
-		must_test_existing=y
+	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz )
+		handle_output=mkdir
+		handle_skip_manually=y
 
 		case "$archive_path" in
 			*.bz )
 				remove_suffix='.bz'
-				run="bunzip2"
+				run_unzip="bunzip2"
+				run_cat="bzcat"
 				;;
 			*.bz2 )
 				remove_suffix='.bz2'
-				run="bunzip2"
+				run_unzip="bunzip2"
+				run_cat="bzcat"
 				;;
 			*.gz )
 				remove_suffix='.gz'
-				run="gunzip"
+				run_unzip="gunzip"
+				run_cat="zcat"
 				;;
 			*.xz )
 				remove_suffix='.xz'
-				run="unxz"
+				run_unzip="unxz"
+				run_cat="xzcat"
 				;;
 			*.lzma )
 				remove_suffix='.lzma'
-				run="unlzma"
+				run_unzip="unlzma"
+				run_cat="lzcat"
 				;;
+			*.lz )
+				remove_suffix='.lz'
+				run_unzip="lzip -d"
+				run_cat="lzip -d --stdout"
 		esac
 
-		[ -z "$delete" ] && run="$run --keep"
-		[ -n "$force" ] && run="$run --force"
-
 		archive_path_handle_dash=double-dash
 		if [ -n "$output_dir" ]; then
-			run="$run --stdout ARCHIVE_PATH > OUTPUT_PATH"
+			handle_delete_manually=y
+			handle_force=noclobber
+			run="$run_cat ARCHIVE_PATH > OUTPUT_PATH"
 		else
-			run="$run ARCHIVE_PATH"
+			run="$run_unzip"
+			[ -z "$delete" ] && run="$run --keep"
+			[ -n "$force" ] && run="$run --force"
+			run="$run_unzip ARCHIVE_PATH"
 		fi
-		;;
-	?*.lz )
-		must_mkdir=y
-		must_test_existing=y
-		remove_suffix='.lz'
-
-		[ -n "$force" ] && run="$run --force"
-
-		if [ -n "$output_dir" ]; then
-			must_rm=y
-			run="lzip -d --output=OUTPUT_PATH"
-		elif [ -n "$delete" ]; then
-			run="lzip -d"
-		else
-			run="lzip -d --keep"
-		fi
-
-		archive_path_handle_dash=double-dash
-		run="$run ARCHIVE_PATH"
 		;;
 	?*.lzo )
-		must_mkdir=y
-		must_test_existing=y
+		handle_skip_manually=y
+		handle_output=mkdir
 
 		run="lzop -x"
 
@@ -227,20 +219,23 @@ case "$archive_path" in
 		run="$run ARCHIVE_PATH"
 		;;
 	?*.Z )
-		must_mkdir=y
-		must_test_existing=y
-		remove_suffix='.Z'
+		handle_skip_manually=y
+		handle_output=mkdir
 
+		remove_suffix='.Z'
 		run="uncompress"
 
-		[ -n "$force" ] && run="$run -f"
 
 		# Let's be strictly POSIX-compliant in the case of .Z
 		archive_path_handle_dash=leading-dot
 		if [ -z "$delete" ] || [ -n "$output_path" ]; then
-			run="$run -c ARCHIVE_PATH > OUTPUT_PATH"
+			handle_delete_manually=y
+			handle_force=noclobber
+			run="uncompress -c ARCHIVE_PATH > OUTPUT_PATH"
+		elif [ -n "$force" ]; then
+			run="uncompress -f ARCHIVE_PATH"
 		else
-			run="$run ARCHIVE_PATH"
+			run="uncompress ARCHIVE_PATH"
 		fi
 		;;
 	* )
@@ -253,7 +248,7 @@ case "$archive_path" in
 				;;
 		esac
 
-		must_rm=y
+		handle_delete_manually=y
 
 		run="7z x"
 
@@ -261,6 +256,7 @@ case "$archive_path" in
 		[ -n "$skip" ] && run="$run -aos"
 		[ -n "$output_dir" ] && run="$run -oOUTPUT_DIR"
 		[ -n "$password" ] && run="$run -pPASSWORD"
+		[ -n "$quiet" ] && run="$run -bd"
 
 		archive_path_handle_dash=double-dash
 		run="$run ARCHIVE_PATH"
@@ -268,7 +264,7 @@ case "$archive_path" in
 esac
 
 # Manually remove archive on successful extraction
-if [ -n "$must_rm" ] && [ -n "$delete" ]; then
+if [ -n "$handle_delete_manually" ] && [ -n "$delete" ]; then
 	case "$archive_path" in
 		-* )
 			run="$run && rm -- $archive_path"
@@ -280,7 +276,7 @@ if [ -n "$must_rm" ] && [ -n "$delete" ]; then
 	used_and=y
 fi
 
-if [ -n "$must_test_existing" ] && [ -n "$skip" ]; then
+if [ -n "$handle_skip_manually" ] && [ -n "$skip" ]; then
 	if [ -n "$used_and" ]; then
 		run="[ -e OUTPUT_PATH ] || ( $run )"
 	else
@@ -288,13 +284,15 @@ if [ -n "$must_test_existing" ] && [ -n "$skip" ]; then
 	fi
 fi
 
+# 'set -o noclobber' to prevent overwriting files by default
+if [ "$handle_force" = 'noclobber' ] && [ -z "$force" ] && [ -z "$skip" ]; then
+	run="set -o noclobber\n$run"
+fi
+
 # Manually create output directory
-if [ -n "$must_mkdir" ]; then
+if [ "$handle_output" = 'mkdir' ] && [ -n "$output_dir" ]; then
 	# Handle output dir which starts with -
 	case "$output_dir" in
-		'' )
-			# No output dir
-			;;
 		-* )
 			run="mkdir -p -- OUTPUT_DIR\n$run"
 			;;
@@ -344,8 +342,9 @@ case "$output_dir" in
 	* )
 		output_path="$output_dir/$base_name_no_ext"
 		;;
-esac
+	esac
 output_path_arg="$(shell_quote "$output_path")"
+output_path_arg="$(simplify_home "$output_path_arg")"
 
 
 awk_program='{
