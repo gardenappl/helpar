@@ -12,7 +12,7 @@ shell_quote() {
 		'' )
 			# Empty string
 			;;
-		*[![:alnum:]-_\./~]* )
+		*[![:alnum:]_\./~-]* )
 			# Argument is not clean, needs quoting
 			echo "'$escaped'"
 			;;
@@ -24,7 +24,7 @@ shell_quote() {
 }
 
 simplify_home() {
-	echo "$1" | awk --assign home="$HOME" '{ sub("^"home, "~"); print }'
+	echo "$1" | awk -v home="$HOME" '{ sub("^"home, "~"); print }'
 }
 
 
@@ -133,7 +133,7 @@ case "$archive_path" in
 		;;
 	*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
 		handle_delete_manually=y
-		handle_output=mkdir
+		handle_output='mkdir'
 
 		case "$archive_path" in
 			*.tar.gz | *.tgz )
@@ -154,11 +154,11 @@ case "$archive_path" in
 
 		# Skip existing files by default.
 		# No need to handle --skip option.
-		[ -z "$force" ] && run="$run --skip-old-files"
+		[ -z "$force" ] && run="$run -k"
 		[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
 		;;
 	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz )
-		handle_output=mkdir
+		handle_output='mkdir'
 		handle_skip_manually=y
 
 		case "$archive_path" in
@@ -202,12 +202,12 @@ case "$archive_path" in
 			run="$run_unzip"
 			[ -z "$delete" ] && run="$run --keep"
 			[ -n "$force" ] && run="$run --force"
-			run="$run_unzip ARCHIVE_PATH"
+			run="$run ARCHIVE_PATH"
 		fi
 		;;
 	?*.lzo )
 		handle_skip_manually=y
-		handle_output=mkdir
+		handle_output='mkdir'
 
 		run="lzop -x"
 
@@ -222,7 +222,7 @@ case "$archive_path" in
 		;;
 	?*.Z )
 		handle_skip_manually=y
-		handle_output=mkdir
+		handle_output='mkdir'
 
 		remove_suffix='.Z'
 		run="uncompress"
@@ -363,21 +363,21 @@ awk_program='{
 # Password in pretty string is red
 
 if [ -z "$only_print_command" ]; then
-	echo "\033[38;5;12m$run\033[m" | >&2 awk \
-		--assign archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
-		--assign output_dir="\033[38;5;2m$output_dir_arg\033[38;5;12m" \
-		--assign output_path="\033[38;5;2m$output_path_arg\033[38;5;12m" \
-		--assign password="\033[38;5;1mPLAINTEXT_PASSWORD\033[38;5;12m" \
+	printf "\033[38;5;12m%s\033[m" "$run" | >&2 awk \
+		-v archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
+		-v output_dir="\033[38;5;2m$output_dir_arg\033[38;5;12m" \
+		-v output_path="\033[38;5;2m$output_path_arg\033[38;5;12m" \
+		-v password="\033[38;5;1mPLAINTEXT_PASSWORD\033[38;5;12m" \
 		"$awk_program"
 	>&2 echo
 fi
 
 
-run_command="$(echo "$run" | awk \
-	--assign archive_path="$archive_path_arg_prefix$archive_path_arg" \
-	--assign output_dir="$output_dir_arg" \
-	--assign output_path="$output_path_arg" \
-	--assign password="$password_arg" \
+run_command="$(printf '%s' "$run" | awk \
+	-v archive_path="$archive_path_arg_prefix$archive_path_arg" \
+	-v output_dir="$output_dir_arg" \
+	-v output_path="$output_path_arg" \
+	-v password="$password_arg" \
 	"$awk_program")"
 
 if [ -n "$only_print_command" ]; then

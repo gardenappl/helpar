@@ -12,7 +12,7 @@ shell_quote() {
 		'' )
 			# Empty string
 			;;
-		*[![:alnum:]-_\./~]* )
+		*[![:alnum:]_\./~-]* )
 			# Argument is not clean, needs quoting
 			echo "'$escaped'"
 			;;
@@ -24,7 +24,7 @@ shell_quote() {
 }
 
 simplify_home() {
-	echo "$1" | awk --assign home="$HOME" '{ sub("^"home, "~"); print }'
+	echo "$1" | awk -v home="$HOME" '{ sub("^"home, "~"); print }'
 }
 
 
@@ -38,10 +38,6 @@ while true; do
 	case "$1" in 
 		-1 | --oneline )
 			one_line=y
-			shift
-			;;
-		-v | --verbose )
-			verbose=y
 			shift
 			;;
 		-c | --command | -S | --simulate )
@@ -140,15 +136,15 @@ if [ -z "$only_print_command" ] && [ -z "$dont_print_pretty" ]; then
 	# Pretty string starts as bright blue, then reset at the end
 	# Arguments in pretty string are green, then the following text is bright blue
 
-	echo "\033[38;5;12m$run\033[m" | >&2 awk \
-		--assign archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
+	printf '\033[38;5;12m%s\033[m' "$run" | >&2 awk \
+		-v archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
 		"$awk_program"
 	>&2 echo
 fi
 
 
-run_command="$(echo "$run" | awk \
-	--assign archive_path="$archive_path_arg_prefix$archive_path_arg" \
+run_command="$(printf '%s' "$run" | awk \
+	-v archive_path="$archive_path_arg_prefix$archive_path_arg" \
 	"$awk_program")"
 
 if [ -n "$only_print_command" ]; then
