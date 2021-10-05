@@ -152,8 +152,7 @@ case "$archive_path" in
 		archive_path_handle_dash=leading-dot
 		run="$run ARCHIVE_PATH"
 
-		# Skip existing files by default.
-		# No need to handle --skip option.
+		[ -n "$skip" ] && run="$run --skip-old-files"
 		[ -z "$force" ] && run="$run -k"
 		[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
 		;;
