@@ -79,6 +79,20 @@ if [ -n "$force" ] && [ -n "$skip" ]; then
 fi
 
 
+# Helper function for tools like xzcat, bzcat
+# If the path to archive contains slashes (e.g. 'dir/file.xz')
+# then force outputting to current directory, as opposed to 'dir/file'
+force_output_dir_to_current_dir() {
+	if [ -z "$output_dir" ]; then
+		case "$archive_path" in
+			*/* )
+				output_dir='.'
+				;;
+		esac
+	fi
+}
+
+
 # We will manually replace ARCHIVE_PATH, etc with the needed arguments
 # (with or without color formatting)
 
@@ -153,7 +167,7 @@ case "$archive_path" in
 		run="$run ARCHIVE_PATH"
 
 		[ -n "$skip" ] && run="$run --skip-old-files"
-		[ -z "$force" ] && run="$run -k"
+		[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
 		[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
 		;;
 	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz )
@@ -192,7 +206,9 @@ case "$archive_path" in
 				run_cat="lzip -d --stdout"
 		esac
 
+		force_output_dir_to_current_dir
 		archive_path_handle_dash=double-dash
+
 		if [ -n "$output_dir" ]; then
 			handle_delete_manually=y
 			handle_force=noclobber
@@ -212,6 +228,10 @@ case "$archive_path" in
 
 		[ -n "$delete" ] && run="$run --delete"
 		[ -n "$force" ] && run="$run --force"
+		if [ -n "$skip" ]; then
+			echo "Sorry, the --skip is not supported for lzop." >&2
+			exit 1
+		fi
 
 		output_dir_handle_dash=leading-dot
 		[ -n "$output_dir" ] && run="$run --path=OUTPUT_DIR"
@@ -226,10 +246,11 @@ case "$archive_path" in
 		remove_suffix='.Z'
 		run="uncompress"
 
+		force_output_dir_to_current_dir
 
 		# Let's be strictly POSIX-compliant in the case of .Z
 		archive_path_handle_dash=leading-dot
-		if [ -z "$delete" ] || [ -n "$output_path" ]; then
+		if [ -z "$delete" ] || [ -n "$output_dir" ]; then
 			handle_delete_manually=y
 			handle_force=noclobber
 			run="uncompress -c ARCHIVE_PATH > OUTPUT_PATH"
@@ -264,41 +285,43 @@ case "$archive_path" in
 		;;
 esac
 
-# Manually remove archive on successful extraction
-if [ -n "$handle_delete_manually" ] && [ -n "$delete" ]; then
-	case "$archive_path" in
-		-* )
-			run="$run && rm -- $archive_path"
-			;;
-		* )
-			run="$run && rm $archive_path"
-			;;
-	esac
-	used_and=y
-fi
-
+# Manually check if file exists
 if [ -n "$handle_skip_manually" ] && [ -n "$skip" ]; then
-	if [ -n "$used_and" ]; then
-		run="[ -e OUTPUT_PATH ] || ( $run )"
+	# We still have to --delete even if we manually skip.
+	# handle_delete_manually is handled later.
+	if [ -n "$delete" ] && [ -z "$handle_delete_manually" ]; then
+		run="([ -e OUTPUT_PATH ] && rm ARCHIVE_PATH) || $run"
 	else
 		run="[ -e OUTPUT_PATH ] || $run"
+	fi
+	used_or=y
+fi
+
+# Manually remove archive on successful extraction
+if [ -n "$handle_delete_manually" ] && [ -n "$delete" ]; then
+	if [ -n "$used_or" ]; then
+		run="($run) && rm ARCHIVE_PATH"
+	else
+		run="$run && rm ARCHIVE_PATH"
 	fi
 fi
 
 # 'set -o noclobber' to prevent overwriting files by default
 if [ "$handle_force" = 'noclobber' ] && [ -z "$force" ] && [ -z "$skip" ]; then
-	run="set -o noclobber\n$run"
+	run="$(printf 'set -o noclobber\n%s' "$run")"
 fi
 
 # Manually create output directory
 if [ "$handle_output" = 'mkdir' ] && [ -n "$output_dir" ]; then
 	# Handle output dir which starts with -
 	case "$output_dir" in
+		. )
+			;;
 		-* )
-			run="mkdir -p -- OUTPUT_DIR\n$run"
+			run="$(printf 'mkdir -p -- OUTPUT_DIR\n%s' "$run")"
 			;;
 		* )
-			run="mkdir -p OUTPUT_DIR\n$run"
+			run="$(printf 'mkdir -p OUTPUT_DIR\n%s' "$run")"
 			;;
 	esac
 fi

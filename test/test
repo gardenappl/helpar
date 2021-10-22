@@ -1,0 +1,331 @@
+#!/bin/sh
+
+set -o errexit
+
+get_abs_filename() {
+	# $1 relative filename
+	echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+
+TEMPDIR="$(mktemp -d)"
+trap 'rm -r "$TEMPDIR"' EXIT
+
+
+HELP_LSARCHIVE="$(get_abs_filename ../help-lsarchive)"
+HELP_EXTRACT="$(get_abs_filename ../help-extract)"
+TEST_RAR="$(get_abs_filename test.rar)"
+
+
+cd "$TEMPDIR"
+
+printf 'testfile\ntestfile 2\n' > expected_output
+
+
+test_lsarchive() {
+	run="$HELP_LSARCHIVE"
+
+	# Prepare
+	[ "$test_oneline" = y ] && run="$run -1"
+	if [ "$test_dash" = y ]; then
+		mv -- "$1" "-dash$1"
+
+		run="$run -- -dash$1"
+	else
+		run="$run $1"
+	fi
+
+	# Run
+	( eval "$run" ) > output
+	#cat output
+
+	# Assert
+	if [ "$test_oneline" = y ]; then
+		if ! cmp output expected_output; then
+			cat output
+			cat expected_output
+			exit 1
+		fi
+	else
+		if ! grep --silent 'testfile' < output; then
+			echo "Output does not contain 'testfile'"
+			exit 1
+		fi
+	fi
+
+	# Cleanup
+	if [ "$test_dash" = y ]; then
+		mv -- "-dash$1" "$1"
+	fi
+}
+
+test_suite_lsarchive() {
+	echo
+	for test_oneline in n y; do
+		for test_dash in n y; do
+			printf 'Dash: %s, oneline: %s\n' "$test_dash" "$test_oneline"
+			test_lsarchive "$1"
+		done
+	done
+}
+
+test_extract() {
+	run="$HELP_EXTRACT"
+	file="$1"
+	orig_file="$1"
+
+	# Prepare
+	rm -f testfile 'testfile 2'
+
+	if [ "$test_delete" = y ]; then
+		cp "$file" "backup-$file"
+
+		run="$run --delete"
+	fi
+
+	if [ "$test_directory" = y ]; then
+		mkdir -p output-dir
+		run="$run --output-directory=output-dir"
+	fi
+
+	if [ "$test_input_dir" = y ]; then
+		if [ "$test_dash" = y ]; then
+			mkdir -p ./-dash-input-dir
+			cp "$file" ./-dash-input-dir
+			file="-dash-input-dir/$file"
+		else
+			mkdir -p input-dir
+			cp "$file" input-dir
+			file="input-dir/$file"
+		fi	
+	fi
+
+	if [ "$test_dash" = y ]; then
+		if [ "$test_input_dir" = n ]; then
+			cp -- "$file" "-dash$file"
+			file="-dash$file"
+		fi
+	fi
+	
+	if [ "$format_single" = y ]; then
+		# Archive path may have changed, let's figure the new name
+		# for output file
+		extract_testfile="$("$HELP_LSARCHIVE" -1 -- "$file")"
+	elif [ "$test_directory" = y ]; then
+		extract_testfile='output-dir/testfile'
+	else
+		extract_testfile='testfile'
+	fi
+
+	if [ "$test_force" = 'skip' ]; then
+		echo 'This should be skipped.' > "$extract_testfile"
+		run="$run --skip"
+	elif [ "$test_force" = 'overwrite' ]; then
+		echo 'This should be overwritten.' > "$extract_testfile"
+		run="$run --force"
+	fi
+
+	if [ "$test_dash" = y ]; then
+		run="$run -- $file"
+	else
+		run="$run $file"
+	fi
+
+	# Run
+	( eval "$run" )
+
+	# Assert
+	if [ "$test_delete" = y ] && [ -e "$file" ]; then
+		echo "Archive was not deleted."
+		exit 1
+	fi
+
+	if [ "$test_directory" = y ]; then
+		cd output-dir
+	fi
+
+	if [ "$format_single" = n ]; then
+		if [ "$test_force" = 'skip' ]; then
+			if [ "$(cat testfile)" != 'This should be skipped.' ]; then
+				echo "File was not skipped."
+				exit 1
+			fi
+		elif [ "$(cat testfile)" != "Test file for $format" ]; then
+			echo "Wrong file content: $(cat testfile)"
+			exit 1
+		fi
+		if [ "$(cat 'testfile 2')" != "Second test file for $format" ]; then
+			echo "Wrong file content: $(cat testfile)"
+			exit 1
+		fi
+	fi
+
+	if [ "$test_directory" = y ]; then
+		cd ..
+	fi
+}
+
+test_suite_extract() {
+	for test_force in n skip overwrite; do
+		if [ "$test_force" = 'skip' ] && [ -n "$_hack_skip_test_force" ]; then
+			printf '\nSKIPPING --skip tests'
+			continue
+		fi
+		for test_directory in n y; do
+			for test_input_dir in n y; do
+				for test_dash in n y; do
+					for test_delete in n y; do
+						mkdir -p test
+						cp "$1" test/
+						cd test
+
+						printf '\n'
+						echo "Dash: $test_dash, force: $test_force, output-dir: $test_directory, input-dir: $test_input_dir, delete: $test_delete"
+						test_extract "$1"
+
+						cd ..
+						rm -r test
+					done
+				done
+			done
+		done
+	done
+}
+
+prepare_format() {
+	echo "Testing $1..."
+	echo "Test file for $1" > testfile
+	if [ "$format_single" = n ]; then
+		echo "Second test file for $1" > testfile\ 2
+	fi
+}
+
+
+
+format="ZIP"
+format_single=n
+if command -v zip; then
+	prepare_format "$format"
+	zip test.zip testfile testfile\ 2
+	test_suite_lsarchive test.zip
+	test_suite_extract test.zip
+else
+	skipped=y
+	echo "Skipping: zip not available."
+fi
+
+format="RAR"
+format_single=n
+if command -v unrar; then
+	prepare_format "$format"
+	cp "$TEST_RAR" test.rar
+	test_suite_lsarchive test.rar
+	test_suite_extract test.rar
+else
+	skipped=y
+	echo "Skipping: unrar not available."
+fi
+
+format=".tar"
+format_single=n
+prepare_format "$format"
+tar cvf test.tar testfile testfile\ 2
+test_suite_lsarchive test.tar
+test_suite_extract test.tar
+
+format="7z"
+format_single=n
+if command -v 7z; then
+	prepare_format "$format"
+	7z a test.7z testfile testfile\ 2
+	test_suite_lsarchive test.7z
+	test_suite_extract test.7z
+else
+	skipped=y
+	echo "Skipping: 7z not available."
+fi
+
+format="bzip"
+format_single=y
+if command -v bzip2; then
+	prepare_format "$format"
+	bzip2 testfile
+	test_suite_extract testfile.bz2
+else
+	skipped=y
+	echo "Skipping: bzip2 not available."
+fi
+
+format="gzip"
+format_single=y
+if command -v gzip; then
+	prepare_format "$format"
+	gzip testfile
+	test_suite_extract testfile.gz
+else
+	skipped=y
+	echo "Skipping: bzip2 not available."
+fi
+
+format="xz"
+format_single=y
+if command -v xz; then
+	prepare_format "$format"
+	xz testfile
+	test_suite_extract testfile.xz
+else
+	skipped=y
+	echo "Skipping: xz not available."
+fi
+
+format="lzma"
+format_single=y
+if command -v lzma; then
+	prepare_format "$format"
+	lzma testfile
+	test_suite_extract testfile.lzma
+else
+	skipped=y
+	echo "Skipping: lzma not available."
+fi
+
+format="lzip"
+format_single=y
+if command -v lzip; then
+	prepare_format "$format"
+	lzip testfile
+	test_suite_extract testfile.lz
+else
+	skipped=y
+	echo "Skipping: lzip not available."
+fi
+
+format=".Z"
+format_single=y
+if command -v gzip && command -v uncompress; then
+	prepare_format "$format"
+	gzip testfile -S .Z
+	test_suite_extract testfile.Z
+else
+	skipped=y
+	echo "Skipping: gzip and uncompress not available."
+fi
+
+format="lzop"
+format_single=n
+if command -v lzop; then
+	prepare_format "$format"
+	lzop -P testfile 'testfile 2' -o test.lzo
+	test_suite_lsarchive test.lzo
+	_hack_skip_test_force=y
+	test_suite_extract test.lzo
+	unset _hack_skip_test_force
+else
+	skipped=y
+	echo "Skipping: lzop not available."
+fi
+
+if [ -n "$skipped" ]; then
+	echo "--------------------"
+	echo "Warning: some tests were skipped due to missing dependencies."
+	echo "--------------------"
+fi
