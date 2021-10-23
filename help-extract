@@ -120,8 +120,7 @@ case "$archive_path" in
 		esac
 
 		# Info-ZIP does not recognize --
-		archive_path_handle_dash=leading-dot
-		run="$run ARCHIVE_PATH"
+		run="$run DOT_ARCHIVE_PATH"
 
 		[ -n "$output_dir" ] && run="$run -d OUTPUT_DIR"
 		;;
@@ -135,8 +134,7 @@ case "$archive_path" in
 		[ -n "$quiet" ] && run="$run -idq"
 		[ -n "$password" ] && run="$run -pPASSWORD"
 
-		archive_path_handle_dash=double-dash
-		run="$run ARCHIVE_PATH"
+		run="$run DOUBLE_DASH_ARCHIVE_PATH"
 
 		# unrar always treats the last argument as the output dir,
 		# but only if it has a trailing slash
@@ -163,8 +161,7 @@ case "$archive_path" in
 
 		# Handle archive path which starts with -
 		# We put the --directory argument at the end, so we can't use --
-		archive_path_handle_dash=leading-dot
-		run="$run ARCHIVE_PATH"
+		run="$run DOT_ARCHIVE_PATH"
 
 		[ -n "$skip" ] && run="$run --skip-old-files"
 		[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
@@ -207,17 +204,16 @@ case "$archive_path" in
 		esac
 
 		force_output_dir_to_current_dir
-		archive_path_handle_dash=double-dash
 
 		if [ -n "$output_dir" ]; then
 			handle_delete_manually=y
 			handle_force=noclobber
-			run="$run_cat ARCHIVE_PATH > OUTPUT_PATH"
+			run="$run_cat DOUBLE_DASH_ARCHIVE_PATH > OUTPUT_PATH"
 		else
 			run="$run_unzip"
 			[ -z "$delete" ] && run="$run --keep"
 			[ -n "$force" ] && run="$run --force"
-			run="$run ARCHIVE_PATH"
+			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		fi
 		;;
 	?*.lzo )
@@ -226,6 +222,7 @@ case "$archive_path" in
 
 		run="lzop -x"
 
+		[ -n "$quiet" ] && run="$run --quiet"
 		[ -n "$delete" ] && run="$run --delete"
 		[ -n "$force" ] && run="$run --force"
 		if [ -n "$skip" ]; then
@@ -233,11 +230,9 @@ case "$archive_path" in
 			exit 1
 		fi
 
-		output_dir_handle_dash=leading-dot
 		[ -n "$output_dir" ] && run="$run --path=OUTPUT_DIR"
 
-		archive_path_handle_dash=double-dash
-		run="$run ARCHIVE_PATH"
+		run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		;;
 	?*.Z )
 		handle_skip_manually=y
@@ -249,15 +244,14 @@ case "$archive_path" in
 		force_output_dir_to_current_dir
 
 		# Let's be strictly POSIX-compliant in the case of .Z
-		archive_path_handle_dash=leading-dot
 		if [ -z "$delete" ] || [ -n "$output_dir" ]; then
 			handle_delete_manually=y
 			handle_force=noclobber
-			run="uncompress -c ARCHIVE_PATH > OUTPUT_PATH"
+			run="uncompress -c DOT_ARCHIVE_PATH > OUTPUT_PATH"
 		elif [ -n "$force" ]; then
-			run="uncompress -f ARCHIVE_PATH"
+			run="uncompress -f DOT_ARCHIVE_PATH"
 		else
-			run="uncompress ARCHIVE_PATH"
+			run="uncompress DOT_ARCHIVE_PATH"
 		fi
 		;;
 	* )
@@ -280,8 +274,7 @@ case "$archive_path" in
 		[ -n "$password" ] && run="$run -pPASSWORD"
 		[ -n "$quiet" ] && run="$run -bd"
 
-		archive_path_handle_dash=double-dash
-		run="$run ARCHIVE_PATH"
+		run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		;;
 esac
 
@@ -290,7 +283,7 @@ if [ -n "$handle_skip_manually" ] && [ -n "$skip" ]; then
 	# We still have to --delete even if we manually skip.
 	# handle_delete_manually is handled later.
 	if [ -n "$delete" ] && [ -z "$handle_delete_manually" ]; then
-		run="([ -e OUTPUT_PATH ] && rm ARCHIVE_PATH) || $run"
+		run="([ -e OUTPUT_PATH ] && rm DOUBLE_DASH_ARCHIVE_PATH) || $run"
 	else
 		run="[ -e OUTPUT_PATH ] || $run"
 	fi
@@ -300,9 +293,9 @@ fi
 # Manually remove archive on successful extraction
 if [ -n "$handle_delete_manually" ] && [ -n "$delete" ]; then
 	if [ -n "$used_or" ]; then
-		run="($run) && rm ARCHIVE_PATH"
+		run="($run) && rm DOUBLE_DASH_ARCHIVE_PATH"
 	else
-		run="$run && rm ARCHIVE_PATH"
+		run="$run && rm DOUBLE_DASH_ARCHIVE_PATH"
 	fi
 fi
 
@@ -313,39 +306,8 @@ fi
 
 # Manually create output directory
 if [ "$handle_output" = 'mkdir' ] && [ -n "$output_dir" ]; then
-	# Handle output dir which starts with -
-	case "$output_dir" in
-		. )
-			;;
-		-* )
-			run="$(printf 'mkdir -p -- OUTPUT_DIR\n%s' "$run")"
-			;;
-		* )
-			run="$(printf 'mkdir -p OUTPUT_DIR\n%s' "$run")"
-			;;
-	esac
+	run="$(printf 'mkdir -p DOUBLE_DASH_OUTPUT_DIR\n%s' "$run")"
 fi
-
-
-case "$archive_path" in
-	-* )
-		if [ "$archive_path_handle_dash" = 'double-dash' ]; then
-			archive_path_arg_prefix="-- "
-		elif [ "$archive_path_handle_dash" = 'leading-dot' ]; then
-			archive_path="./$archive_path"
-		fi
-		;;
-	* )
-		;;
-esac
-
-case "$output_dir" in
-	-* )
-		if [ "$output_dir_handle_dash" = 'leading-dot' ]; then
-			output_dir="./$output_dir"
-		fi
-		;;
-esac
 
 
 archive_path_arg="$(shell_quote "$archive_path")"
@@ -366,13 +328,45 @@ case "$output_dir" in
 	* )
 		output_path="$output_dir/$base_name_no_ext"
 		;;
-	esac
+esac
+
+
+
+case "$output_path" in
+	./* )
+		output_path="${output_path##./}"
+		;;
+esac
+
 output_path_arg="$(shell_quote "$output_path")"
 output_path_arg="$(simplify_home "$output_path_arg")"
 
+case "$archive_path_arg" in
+	-* )
+		dot_archive_path_arg="./$archive_path_arg"
+		double_dash_archive_path_prefix="-- "
+		;;
+	\'-* )
+		dot_archive_path_arg="'./${archive_path_arg##\'}"
+		double_dash_archive_path_prefix="-- "
+		;;
+	* )
+		dot_archive_path_arg="$archive_path_arg"
+		;;
+esac
+
+case "$output_dir_arg" in
+	-* | \'-* )
+		double_dash_output_dir_prefix="-- "
+		;;
+esac
+
 
 awk_program='{
+	gsub("DOT_ARCHIVE_PATH", dot_archive_path);
+	gsub("DOUBLE_DASH_ARCHIVE_PATH", double_dash_archive_path);
 	gsub("ARCHIVE_PATH", archive_path);
+	gsub("DOUBLE_DASH_OUTPUT_DIR", double_dash_output_dir);
 	gsub("OUTPUT_DIR", output_dir);
 	gsub("OUTPUT_PATH", output_path);
 	gsub("PASSWORD", password);
@@ -386,8 +380,11 @@ awk_program='{
 
 if [ -z "$only_print_command" ]; then
 	printf "\033[38;5;12m%s\033[m" "$run" | >&2 awk \
-		-v archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
+		-v archive_path="\033[38;5;2m$archive_path_arg\033[38;5;12m" \
+		-v dot_archive_path="\033[38;5;2m$dot_archive_path_arg\033[38;5;12m" \
+		-v double_dash_archive_path="$double_dash_archive_path_prefix\033[38;5;2m$archive_path_arg\033[38;5;12m" \
 		-v output_dir="\033[38;5;2m$output_dir_arg\033[38;5;12m" \
+		-v double_dash_output_dir="$double_dash_output_dir_prefix\033[38;5;2m$output_dir_arg\033[38;5;12m" \
 		-v output_path="\033[38;5;2m$output_path_arg\033[38;5;12m" \
 		-v password="\033[38;5;1mPLAINTEXT_PASSWORD\033[38;5;12m" \
 		"$awk_program"
@@ -396,8 +393,11 @@ fi
 
 
 run_command="$(printf '%s' "$run" | awk \
-	-v archive_path="$archive_path_arg_prefix$archive_path_arg" \
+	-v archive_path="$archive_path_arg" \
+	-v dot_archive_path="$dot_archive_path_arg" \
+	-v double_dash_archive_path="$double_dash_archive_path_prefix$archive_path_arg" \
 	-v output_dir="$output_dir_arg" \
+	-v double_dash_output_dir="$double_dash_output_dir_prefix$output_dir_arg" \
 	-v output_path="$output_path_arg" \
 	-v password="$password_arg" \
 	"$awk_program")"
