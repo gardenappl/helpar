@@ -111,6 +111,13 @@ case "$archive_path" in
 			run="lzop --ls -P ARCHIVE_PATH"
 		fi
 		;;
+	*.cpio )
+		if [ -n "$one_line" ]; then
+			run="cpio -t --quiet < ARCHIVE_PATH"
+		else
+			run="cpio -t -v < ARCHIVE_PATH"
+		fi
+		;;
 	* )
 		case "$archive_path" in
 			*.7z )

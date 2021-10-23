@@ -14,6 +14,7 @@ trap 'rm -r "$TEMPDIR"' EXIT
 HELP_LSARCHIVE="$(get_abs_filename ../help-lsarchive)"
 HELP_EXTRACT="$(get_abs_filename ../help-extract)"
 TEST_RAR="$(get_abs_filename test.rar)"
+TEST_ARJ="$(get_abs_filename test.arj)"
 
 
 cd "$TEMPDIR"
@@ -201,6 +202,31 @@ prepare_format() {
 	fi
 }
 
+
+
+format="cpio"
+format_single=n
+if command -v cpio; then
+	prepare_format "$format"
+	printf 'testfile\ntestfile 2' | cpio -o > test.cpio
+	test_suite_lsarchive test.cpio
+	test_suite_extract test.cpio
+else
+	skipped=y
+	echo "Skipping: cpio not available."
+fi
+
+#format="arj"
+#format_single=n
+#if command -v unarj; then
+#	prepare_format "$format"
+#	cp "$TEST_ARJ" test.arj
+#	test_suite_lsarchive test.arj
+#	test_suite_extract test.arj
+#else
+#	skipped=y
+#	echo "Skipping: unarj not available."
+#fi
 
 
 format=".lz4"

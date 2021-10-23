@@ -301,13 +301,25 @@ case "$archive_path" in
 		[ -n "$delete" ] && run="$run --delete"
 		[ -n "$force" ] && run="$run --force"
 		if [ -n "$skip" ]; then
-			echo "Sorry, the --skip is not supported for lzop." >&2
+			echo "Sorry, the --skip flag is not supported for lzop." >&2
 			exit 1
 		fi
 
 		[ -n "$output_dir" ] && run="$run --path=OUTPUT_DIR"
 
 		run="$run DOUBLE_DASH_ARCHIVE_PATH"
+		;;
+	*.cpio )
+		# BUG?: GNU cpio creates output directory automatically, but writes nothing and crashes
+		handle_delete_manually=y
+
+		run="cpio -i"
+
+		[ -n "$quiet" ] && run="$run -d --quiet" || run="$run -vd"
+		[ -n "$force" ] && run="$run --unconditional"
+		[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
+		
+		run="$run < ARCHIVE_PATH"
 		;;
 	?*.Z )
 		handle_skip_manually=y
