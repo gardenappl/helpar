@@ -27,7 +27,7 @@ test_lsarchive() {
 	file="$1"
 
 	# Prepare
-	[ "$test_oneline" = y ] && run="$run -1"
+	if [ "$test_oneline" = y ]; then run="$run -1"; fi
 
 	if [ "$test_dash" = y ]; then
 		mv -- "$file" "-dash$file"
@@ -88,15 +88,14 @@ test_extract() {
 	file="$1"
 
 	# Prepare
-	[ "$test_delete" = y ] && run="$run --delete"
+	if [ "$test_delete" = y ]; then run="$run --delete"; fi
 
 	if [ "$test_output_dir" = y ]; then
-		mkdir -p output-dir
 		run="$run --output-directory=output-dir"
 	fi
 
 	if [ "$test_input" = 'dir' ]; then
-		mkdir -p input-dir
+		mkdir input-dir
 		cp "$file" input-dir
 		file="input-dir/$file"
 	elif [ "$test_input" = 'dash' ]; then
@@ -116,9 +115,11 @@ test_extract() {
 	fi
 
 	if [ "$test_force" = 'skip' ]; then
+		if [ "$test_output_dir" = y ]; then mkdir output-dir; fi
 		echo 'This should be skipped.' > "$extract_testfile"
 		run="$run --skip"
 	elif [ "$test_force" = 'overwrite' ]; then
+		if [ "$test_output_dir" = y ]; then mkdir output-dir; fi
 		echo 'This should be overwritten.' > "$extract_testfile"
 		run="$run --force"
 	fi
@@ -190,7 +191,7 @@ test_suite_extract() {
 					continue
 				fi
 				for test_delete in n y; do
-					mkdir -p test
+					mkdir test
 					cp "$1" test/
 					cd test
 
@@ -224,7 +225,9 @@ if command -v cpio; then
 
 	test_suite_lsarchive test.cpio
 
+	_hack_skip_test_output_dir=y
 	test_suite_extract test.cpio
+	unset _hack_skip_test_output_dir
 else
 	skipped=y
 	echo "Skipping: cpio not available."
