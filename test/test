@@ -203,6 +203,19 @@ prepare_format() {
 
 
 
+format=".lz4"
+format_single=y
+if command -v lz4; then
+	prepare_format "$format"
+	lz4 testfile
+	test_suite_lsarchive testfile.lz4
+	test_suite_extract testfile.lz4
+else
+	skipped=y
+	echo "Skipping: lz4 not available."
+fi
+
+
 if command -v lrzip; then
 	# .tar.lrz is a special case
 	format="lrzip with tar"
@@ -371,4 +384,5 @@ if [ -n "$skipped" ]; then
 	echo "--------------------"
 	echo "Warning: some tests were skipped due to missing dependencies."
 	echo "(use 'grep Skipping:')"
+	exit 1
 fi

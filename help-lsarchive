@@ -94,7 +94,7 @@ case "$archive_path" in
 		esac
 		run="$run ARCHIVE_PATH"
 		;;
-	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz | ?*.lrz | ?*.zst | ?*.Z )
+	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz | ?*.lz4 | ?*.lrz | ?*.zst | ?*.Z )
 		dont_print_pretty=y
 		if [ -n "$one_line" ]; then
 			run="printf '%s\n' ARCHIVE_PATH | sed 's/\.[^.]*$//; s|[^/]*/||g'"

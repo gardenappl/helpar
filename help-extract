@@ -244,7 +244,7 @@ case "$archive_path" in
 			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		fi
 		;;
-	*.zst )
+	?*.zst )
 		handle_skip_manually=y
 		handle_output='mkdir'
 
@@ -259,6 +259,21 @@ case "$archive_path" in
 		[ -n "$output_dir" ] && run="$run --output-dir-flat=OUTPUT_DIR"
 
 		run="$run DOUBLE_DASH_ARCHIVE_PATH"
+		;;
+	?*.lz4 )
+		handle_skip_manually=y
+		handle_output='mkdir'
+
+		remove_suffix='.lz4'
+		run="unlz4"
+
+		force_output_dir_to_current_dir
+
+		[ -n "$quiet" ] && run="$run --quiet"
+		[ -n "$delete" ] && run="$run --rm"
+		[ -n "$force" ] && run="$run --force"
+		run="$run DOUBLE_DASH_ARCHIVE_PATH"
+		[ -n "$output_dir" ] && run="$run DOT_OUTPUT_PATH"
 		;;
 	*.lrz )
 		handle_skip_manually=y
@@ -390,7 +405,8 @@ case "$output_dir" in
 esac
 
 
-
+# Special handling for force_output_dir_to_current_dir
+# Might not need the leading ./ at this point
 case "$output_path" in
 	./* )
 		output_path="${output_path##./}"
@@ -414,6 +430,18 @@ case "$archive_path_arg" in
 		;;
 esac
 
+case "$output_path_arg" in
+	-* )
+		dot_output_path_arg="./$output_path_arg"
+		;;
+	\'-* )
+		dot_output_path_arg="'./${output_path_arg##\'}"
+		;;
+	* )
+		dot_output_path_arg="$output_path_arg"
+		;;
+esac
+
 case "$output_dir_arg" in
 	-* | \'-* )
 		double_dash_output_dir_prefix="-- "
@@ -427,6 +455,7 @@ awk_program='{
 	gsub("ARCHIVE_PATH", archive_path);
 	gsub("DOUBLE_DASH_OUTPUT_DIR", double_dash_output_dir);
 	gsub("OUTPUT_DIR", output_dir);
+	gsub("DOT_OUTPUT_PATH", dot_output_path);
 	gsub("OUTPUT_PATH", output_path);
 	gsub("PASSWORD", password);
 	print;
@@ -445,6 +474,7 @@ if [ -z "$only_print_command" ]; then
 		-v output_dir="\033[38;5;2m$output_dir_arg\033[38;5;12m" \
 		-v double_dash_output_dir="$double_dash_output_dir_prefix\033[38;5;2m$output_dir_arg\033[38;5;12m" \
 		-v output_path="\033[38;5;2m$output_path_arg\033[38;5;12m" \
+		-v dot_output_path="\033[38;5;2m$dot_output_path_arg\033[38;5;12m" \
 		-v password="\033[38;5;1mPLAINTEXT_PASSWORD\033[38;5;12m" \
 		"$awk_program"
 	>&2 echo
@@ -458,6 +488,7 @@ run_command="$(printf '%s' "$run" | awk \
 	-v output_dir="$output_dir_arg" \
 	-v double_dash_output_dir="$double_dash_output_dir_prefix$output_dir_arg" \
 	-v output_path="$output_path_arg" \
+	-v dot_output_path="$dot_output_path_arg" \
 	-v password="$password_arg" \
 	"$awk_program")"
 
