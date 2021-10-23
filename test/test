@@ -72,6 +72,10 @@ test_lsarchive() {
 test_suite_lsarchive() {
 	echo
 	for test_oneline in n y; do
+		if [ -n "$_hack_skip_test_oneline" ] && [ "$test_oneline" = y ]; then
+			printf '\n=====\nSKIPPING --oneline tests for %s\n=====\n\n' "$format"
+			continue
+		fi
 		for test_dash in n y; do
 			printf 'Dash: %s, oneline: %s\n' "$test_dash" "$test_oneline"
 			test_lsarchive "$1"
@@ -171,12 +175,20 @@ test_extract() {
 
 test_suite_extract() {
 	for test_force in n skip overwrite; do
-		if [ "$test_force" = 'skip' ] && [ -n "$_hack_skip_test_force" ]; then
-			printf '\nSKIPPING --skip tests'
+		if [ "$test_force" = 'overwrite' ] && [ -n "$_hack_skip_test_force" ]; then
+			printf '\n=====\nSKIPPING --force tests for %s\n=====\n\n' "$format"
+			continue
+		fi
+		if [ "$test_force" = 'skip' ] && [ -n "$_hack_skip_test_skip" ]; then
+			printf '\n=====\nSKIPPING --skip tests for %s\n=====\n\n' "$format"
 			continue
 		fi
 		for test_input in n dir dash; do
 			for test_output_dir in n y; do
+				if [ -n "$_hack_skip_test_output_dir" ] && [ "$test_output_dir" = y ]; then
+					printf '\n=====\nSKIPPING --output-directory tests for %s\n=====\n\n' "$format"
+					continue
+				fi
 				for test_delete in n y; do
 					mkdir -p test
 					cp "$1" test/
@@ -209,24 +221,37 @@ format_single=n
 if command -v cpio; then
 	prepare_format "$format"
 	printf 'testfile\ntestfile 2' | cpio -o > test.cpio
+
 	test_suite_lsarchive test.cpio
+
 	test_suite_extract test.cpio
 else
 	skipped=y
 	echo "Skipping: cpio not available."
 fi
 
-#format="arj"
-#format_single=n
-#if command -v unarj; then
-#	prepare_format "$format"
-#	cp "$TEST_ARJ" test.arj
-#	test_suite_lsarchive test.arj
-#	test_suite_extract test.arj
-#else
-#	skipped=y
-#	echo "Skipping: unarj not available."
-#fi
+
+format="ARJ"
+format_single=n
+if command -v unarj; then
+	prepare_format "$format"
+	cp "$TEST_ARJ" test.arj
+
+	_hack_skip_test_oneline=y
+	test_suite_lsarchive test.arj
+	unset _hack_skip_test_oneline
+
+	_hack_skip_test_output_dir=y
+	_hack_skip_test_force=y
+	_hack_skip_test_skip=y
+	test_suite_extract test.arj
+	unset _hack_skip_test_skip
+	unset _hack_skip_test_force
+	unset _hack_skip_test_output_dir
+else
+	skipped=y
+	echo "Skipping: unarj not available."
+fi
 
 
 format=".lz4"
@@ -234,7 +259,9 @@ format_single=y
 if command -v lz4; then
 	prepare_format "$format"
 	lz4 testfile
+
 	test_suite_lsarchive testfile.lz4
+
 	test_suite_extract testfile.lz4
 else
 	skipped=y
@@ -249,7 +276,9 @@ if command -v lrzip; then
 	prepare_format "$format"
 	tar cvf test.tar testfile 'testfile 2'
 	lrzip test.tar
+
 	test_suite_lsarchive test.tar.lrz
+
 	test_suite_extract test.tar.lrz
 
 
@@ -257,148 +286,186 @@ if command -v lrzip; then
 	format_single=y
 	prepare_format "$format"
 	lrzip testfile
+
 	test_suite_lsarchive testfile.lrz
+
 	test_suite_extract testfile.lrz
 else
 	skipped=y
 	echo "Skipping: lrzip not available."
 fi
 
+
 format="ZIP"
 format_single=n
 if command -v zip; then
 	prepare_format "$format"
 	zip test.zip testfile testfile\ 2
+
 	test_suite_lsarchive test.zip
+
 	test_suite_extract test.zip
 else
 	skipped=y
 	echo "Skipping: zip not available."
 fi
 
+
 format="RAR"
 format_single=n
 if command -v unrar; then
 	prepare_format "$format"
 	cp "$TEST_RAR" test.rar
+
 	test_suite_lsarchive test.rar
+
 	test_suite_extract test.rar
 else
 	skipped=y
 	echo "Skipping: unrar not available."
 fi
 
+
 format="tar"
 format_single=n
 prepare_format "$format"
 tar cvf test.tar testfile testfile\ 2
+
 test_suite_lsarchive test.tar
+
 test_suite_extract test.tar
+
 
 format="7z"
 format_single=n
 if command -v 7z; then
 	prepare_format "$format"
 	7z a test.7z testfile testfile\ 2
+
 	test_suite_lsarchive test.7z
+
 	test_suite_extract test.7z
 else
 	skipped=y
 	echo "Skipping: 7z not available."
 fi
 
+
 format=".bz2"
 format_single=y
 if command -v bzip2; then
 	prepare_format "$format"
 	bzip2 testfile
+
 	test_suite_lsarchive testfile.bz2
+
 	test_suite_extract testfile.bz2
 else
 	skipped=y
 	echo "Skipping: bzip2 not available."
 fi
 
+
 format=".gz"
 format_single=y
 if command -v gzip; then
 	prepare_format "$format"
 	gzip testfile
+
 	test_suite_lsarchive testfile.gz
+
 	test_suite_extract testfile.gz
 else
 	skipped=y
 	echo "Skipping: gzip not available."
 fi
 
+
 format=".xz"
 format_single=y
 if command -v xz; then
 	prepare_format "$format"
 	xz testfile
+
 	test_suite_lsarchive testfile.xz
+
 	test_suite_extract testfile.xz
 else
 	skipped=y
 	echo "Skipping: xz not available."
 fi
 
+
 format=".lzma"
 format_single=y
 if command -v lzma; then
 	prepare_format "$format"
 	lzma testfile
+
 	test_suite_lsarchive testfile.lzma
+
 	test_suite_extract testfile.lzma
 else
 	skipped=y
 	echo "Skipping: lzma not available."
 fi
 
+
 format=".lz"
 format_single=y
 if command -v lzip; then
 	prepare_format "$format"
 	lzip testfile
+
 	test_suite_lsarchive testfile.lz
+
 	test_suite_extract testfile.lz
 else
 	skipped=y
 	echo "Skipping: lzip not available."
 fi
 
+
 format=".Z"
 format_single=y
 if command -v gzip && command -v uncompress; then
 	prepare_format "$format"
 	gzip testfile -S .Z
+
 	test_suite_lsarchive testfile.Z
+
 	test_suite_extract testfile.Z
 else
 	skipped=y
 	echo "Skipping: gzip and uncompress not available."
 fi
 
+
 format="lzop"
 format_single=n
 if command -v lzop; then
 	prepare_format "$format"
 	lzop -P testfile 'testfile 2' -o test.lzo
+
 	test_suite_lsarchive test.lzo
-	_hack_skip_test_force=y
+
+	_hack_skip_test_skip=y
 	test_suite_extract test.lzo
-	unset _hack_skip_test_force
+	unset _hack_skip_test_skip
 else
 	skipped=y
 	echo "Skipping: lzop not available."
 fi
+
 
 format=".zst"
 format_single=y
 if command -v zstd; then
 	prepare_format "$format"
 	zstd testfile
+
 	test_suite_lsarchive testfile.zst
+
 	test_suite_extract testfile.zst
 else
 	skipped=y

@@ -118,6 +118,12 @@ case "$archive_path" in
 			run="cpio -t -v < ARCHIVE_PATH"
 		fi
 		;;
+	*.arj )
+		if [ -n "$one_line" ]; then
+			echo "Sorry, the --oneline flag is not supported for ARJ." >&2
+		fi
+		run="unarj l ARCHIVE_PATH"
+		;;
 	* )
 		case "$archive_path" in
 			*.7z )

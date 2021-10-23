@@ -309,6 +309,16 @@ case "$archive_path" in
 
 		run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		;;
+	*.arj )
+		handle_delete_manually=y
+
+		if [ -n "$quiet" ] || [ -n "$force" ] || [ -n "$skip" ] || [ -n "$output_dir" ]; then
+			echo "Sorry, unarj does nor support any flags." >&2
+			exit 1
+		fi
+
+		run="unarj x ARCHIVE_PATH"
+		;;
 	*.cpio )
 		# BUG?: GNU cpio creates output directory automatically, but writes nothing and crashes
 		handle_delete_manually=y
