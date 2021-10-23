@@ -228,6 +228,7 @@ case "$archive_path" in
 				remove_suffix='.lz'
 				run_unzip="lzip -d"
 				run_cat="lzip -d --stdout"
+				;;
 		esac
 
 		force_output_dir_to_current_dir
@@ -242,6 +243,22 @@ case "$archive_path" in
 			[ -n "$force" ] && run="$run --force"
 			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		fi
+		;;
+	*.zst )
+		handle_skip_manually=y
+		handle_output='mkdir'
+
+		remove_suffix='.zst'
+		run="unzstd"
+
+		force_output_dir_to_current_dir
+
+		[ -n "$quiet" ] && run="$run --quiet"
+		[ -n "$delete" ] && run="$run --rm"
+		[ -n "$force" ] && run="$run --force"
+		[ -n "$output_dir" ] && run="$run --output-dir-flat=OUTPUT_DIR"
+
+		run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		;;
 	*.lrz )
 		handle_skip_manually=y

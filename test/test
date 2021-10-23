@@ -354,8 +354,21 @@ else
 	echo "Skipping: lzop not available."
 fi
 
+format=".zst"
+format_single=y
+if command -v zstd; then
+	prepare_format "$format"
+	zstd testfile
+	test_suite_lsarchive testfile.zst
+	test_suite_extract testfile.zst
+else
+	skipped=y
+	echo "Skipping: zstd not available."
+fi
+
+
 if [ -n "$skipped" ]; then
 	echo "--------------------"
 	echo "Warning: some tests were skipped due to missing dependencies."
-	echo "--------------------"
+	echo "(use 'grep Skipping:')"
 fi
