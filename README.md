@@ -11,10 +11,10 @@ Supported archive and compression formats:
 
 | File extenstion | Tool |
 | --------------- | :--- |
+| `.tar`, `.tar.*`, `.tgz`, `.tbz`, `.txz`, `.tlz`, `.tzo` | `tar` |
 | `.zip` | `unzip` |
 | `.rar` | `unrar` |
 | `.7z` | `7z` |
-| `.tar`, `.tar.*`, `.tgz`, `.tbz`, `.txz`, `.tlz`, `.tzo` | `tar` |
 | `.bz2`, `.bz` | `bzip2` (`bunzip2`, `bzcat`) |
 | `.gz` | `gzip` (`gunzip2`, `zcat`) |
 | `.lrz` | `lrzip` (`lrunzip`, `lrzcat`) |
@@ -22,8 +22,8 @@ Supported archive and compression formats:
 | `.lz4` | `lz4` (`unlz4`) |
 | `.lzma` | `xz` (`unlzma`, `lzcat`) |
 | `.lzo` | `lzop` |
+| `.zst` | `zstd` (`unzstd`) |
 | `.xz` | `xz` (`unxz`, `xzcat`) |
-| `.zstd` | `zstd` (`unzstd`) |
 | `.Z` | `uncompress` |
 | Everything else | `7z` |
 
