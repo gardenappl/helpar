@@ -74,6 +74,11 @@ case "$archive_path" in
 			run="unrar l ARCHIVE_PATH"
 		fi
 		;;
+	*.tar.lrz )
+		archive_path_handle_dash=double-dash
+		run="lrzcat --quiet ARCHIVE_PATH"
+		[ -n "$one_line" ] && run="$run | tar t" || run="$run | tar tv"
+		;;
 	*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
 		archive_path_handle_dash=leading-dot
 		case "$archive_path" in
@@ -89,10 +94,10 @@ case "$archive_path" in
 		esac
 		run="$run ARCHIVE_PATH"
 		;;
-	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz | ?*.Z )
+	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz | *.lrz | ?*.Z )
 		dont_print_pretty=y
 		if [ -n "$one_line" ]; then
-			run="printf '%s\n' ARCHIVE_PATH | sed 's/\.[^.]*$//'"
+			run="printf '%s\n' ARCHIVE_PATH | sed 's/\.[^.]*$//; s|[^/]*/||g'"
 		else
 			run="echo 'ARCHIVE_PATH is just a single compressed file.'"
 		fi

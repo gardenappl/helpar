@@ -147,6 +147,8 @@ case "$archive_path" in
 		handle_delete_manually=y
 		handle_output='mkdir'
 
+		use_standard_tar=y
+		use_standard_tar_stdin=n
 		case "$archive_path" in
 			*.tar.gz | *.tgz )
 				[ -n "$quiet" ] && run="tar xzf" || run="tar xzvf"
@@ -154,18 +156,43 @@ case "$archive_path" in
 			*.tar.bz | *.tbz )
 				[ -n "$quiet" ] && run="tar xjf" || run="tar xjvf"
 				;;
+			*.tar.lrz )
+				# Special case, not handled by GNU tar
+				# BUG?: man lrzip says it does not override by default, but lrzuntar does?
+				# BUG?: lrzuntar can't handle --long options
+				# BUG?: can't specify password as arg
+				if [ -n "$force" ]; then
+					run="lrzuntar"
+					[ -n "$quiet" ] && run="$run -q"
+					[ -n "$output_dir" ] && run="$run -O OUTPUT_DIR"
+					run="$run DOUBLE_DASH_ARCHIVE_PATH"
+				
+					use_standard_tar=n
+				else
+					if [ -n "$quiet" ]; then
+						run="lrzcat --quiet DOUBLE_DASH_ARCHIVE_PATH | tar x"
+					else
+						run="lrzcat DOUBLE_DASH_ARCHIVE_PATH | tar xv"
+					fi
+					use_standard_tar_stdin=y
+				fi
+				;;
 			* )
 				[ -n "$quiet" ] && run="tar xf" || run="tar xvf"
 				;;
 		esac
 
-		# Handle archive path which starts with -
-		# We put the --directory argument at the end, so we can't use --
-		run="$run DOT_ARCHIVE_PATH"
+		if [ "$use_standard_tar" = y ]; then
+			# Handle archive path which starts with -
+			# We put the --directory argument at the end, so we can't use --
+			if [ "$use_standard_tar_stdin" = n ]; then
+				run="$run DOT_ARCHIVE_PATH"
+			fi
 
-		[ -n "$skip" ] && run="$run --skip-old-files"
-		[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
-		[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
+			[ -n "$skip" ] && run="$run --skip-old-files"
+			[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
+			[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
+		fi
 		;;
 	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz )
 		handle_output='mkdir'
@@ -216,8 +243,24 @@ case "$archive_path" in
 			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		fi
 		;;
-	?*.lzo )
+	*.lrz )
 		handle_skip_manually=y
+		handle_output='mkdir'
+
+		remove_suffix='.lrz'
+		run="lrunzip"
+
+		[ -n "$quiet" ] && run="$run --quiet"
+		[ -n "$delete" ] && run="$run --delete"
+		[ -n "$force" ] && run="$run --force"
+
+		force_output_dir_to_current_dir
+		if [ -n "$output_dir" ]; then
+			run="$run --outdir OUTPUT_DIR"
+		fi
+		run="$run DOUBLE_DASH_ARCHIVE_PATH"
+		;;
+	?*.lzo )
 		handle_output='mkdir'
 
 		run="lzop -x"
@@ -316,8 +359,7 @@ output_dir_arg="$(shell_quote "$output_dir")"
 output_dir_arg="$(simplify_home "$output_dir_arg")"
 password_arg="$(shell_quote "$password")"
 
-base_name="$(basename -- "$archive_path")"
-base_name_no_ext="${base_name%$remove_suffix}"
+base_name_no_ext="$(basename -- "$archive_path" "$remove_suffix")"
 case "$output_dir" in
 	'' )
 		output_path="$base_name_no_ext"
