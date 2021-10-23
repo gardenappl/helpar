@@ -15,11 +15,15 @@ Supported archive and compression formats:
 | `.rar` | `unrar` |
 | `.7z` | `7z` |
 | `.tar`, `.tar.gz`, `.tgz`, `.tbz`, `.txz`, `.tlz`, `.tzo`, `.tar.*` | `tar` |
-| `.bz2`, `.bz` | `bzip2` |
-| `.gz` | `gzip` |
-| `.xz`, `.lzma` | `xz` |
+| `.bz2`, `.bz` | `bzip2` (`bunzip2`, `bzcat`)) |
+| `.gz` | `gzip` (`gunzip2`, `zcat`) |
+| `.lrz` | `lrzip` (`lrunzip`, `lrzcat`) |
 | `.lz` | `lzip` |
+| `.lz4` | `lz4` (`unlz4`) |
+| `.lzma` | `xz` (`unlzma`, `lzcat`) |
 | `.lzo` | `lzop` |
+| `.xz` | `xz` (`unxz`, `xzcat`) |
+| `.zstd` | `zstd` (`unzstd`) |
 | `.Z` | `uncompress` |
 | Everything else | `7z` |
 
