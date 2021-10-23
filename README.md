@@ -14,8 +14,8 @@ Supported archive and compression formats:
 | `.zip` | `unzip` |
 | `.rar` | `unrar` |
 | `.7z` | `7z` |
-| `.tar`, `.tar.gz`, `.tgz`, `.tbz`, `.txz`, `.tlz`, `.tzo`, `.tar.*` | `tar` |
-| `.bz2`, `.bz` | `bzip2` (`bunzip2`, `bzcat`)) |
+| `.tar`, `.tar.*`, `.tgz`, `.tbz`, `.txz`, `.tlz`, `.tzo` | `tar` |
+| `.bz2`, `.bz` | `bzip2` (`bunzip2`, `bzcat`) |
 | `.gz` | `gzip` (`gunzip2`, `zcat`) |
 | `.lrz` | `lrzip` (`lrunzip`, `lrzcat`) |
 | `.lz` | `lzip` |
