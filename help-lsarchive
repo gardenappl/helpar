@@ -111,6 +111,18 @@ case "$archive_path" in
 			run="lzop --ls -P ARCHIVE_PATH"
 		fi
 		;;
+	*.lha )
+		# The non-free lha supports --
+		archive_path_handle_dash=leading-dot
+		if [ -n "$one_line" ]; then
+			# this might be a better way to handle this,
+			# but only supported in non-free lha
+			#run="lha l -vq ARCHIVE_PATH | sed '0~2d'"
+			run="lha -lq ARCHIVE_PATH | cut -c52-"
+		else
+			run="lha -l ARCHIVE_PATH"
+		fi
+		;;
 	*.cpio )
 		if [ -n "$one_line" ]; then
 			run="cpio -t --quiet < ARCHIVE_PATH"

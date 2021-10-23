@@ -15,6 +15,7 @@ HELP_LSARCHIVE="$(get_abs_filename ../help-lsarchive)"
 HELP_EXTRACT="$(get_abs_filename ../help-extract)"
 TEST_RAR="$(get_abs_filename test.rar)"
 TEST_ARJ="$(get_abs_filename test.arj)"
+TEST_LHA="$(get_abs_filename test.lha)"
 
 
 cd "$TEMPDIR"
@@ -214,6 +215,23 @@ prepare_format() {
 		echo "Second test file for $1" > testfile\ 2
 	fi
 }
+
+
+format="LHA"
+format_single=n
+if command -v lha; then
+	prepare_format "$format"
+	cp "$TEST_LHA" .
+
+	test_suite_lsarchive test.lha
+
+	_hack_skip_test_skip=y
+	test_suite_extract test.lha
+	unset _hack_skip_test_skip
+else
+	skipped=y
+	echo "Skipping: lha not available."
+fi
 
 
 

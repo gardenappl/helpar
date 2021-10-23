@@ -17,8 +17,9 @@ Supported archive and compression formats:
 | `.7z` | `7z` |
 | `.arj` | `unarj` | Very limited support |
 | `.bz2`, `.bz` | `bzip2` (`bunzip2`, `bzcat`) | Single-file |
-| `.cpio` | `.cpio` |
+| `.cpio` | `cpio` |
 | `.gz` | `gzip` (`gunzip2`, `zcat`) | Single-file |
+| `lha` | `lha` or `lhasa` | Limited support |
 | `.lrz` | `lrzip` (`lrunzip`, `lrzcat`) | Single-file |
 | `.lz` | `lzip` | Single-file |
 | `.lz4` | `lz4` (`unlz4`) | Single-file |

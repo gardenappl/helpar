@@ -313,11 +313,27 @@ case "$archive_path" in
 		handle_delete_manually=y
 
 		if [ -n "$quiet" ] || [ -n "$force" ] || [ -n "$skip" ] || [ -n "$output_dir" ]; then
-			echo "Sorry, unarj does nor support any flags." >&2
+			echo "Sorry, unarj does not support any flags." >&2
 			exit 1
 		fi
 
 		run="unarj x ARCHIVE_PATH"
+		;;
+	*.lha )
+		handle_delete_manually=y
+
+		run="lha x"
+
+		# Free lhasa does not support short opts
+		[ -n "$quiet" ] && run="$run"q
+		[ -n "$force" ] && run="$run"f
+		if [ -n "$skip" ]; then
+			echo "Sorry, the --skip flag is not supported for lha." >&2
+		fi
+		[ -n "$output_dir" ] && run="$run"'w=OUTPUT_DIR'
+
+		# The non-free lha supports --
+		run="$run DOT_ARCHIVE_PATH"
 		;;
 	*.cpio )
 		# BUG?: GNU cpio creates output directory automatically, but writes nothing and crashes
