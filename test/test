@@ -277,16 +277,29 @@ fi
 
 format=".lz4"
 format_single=y
-if command -v lz4; then
-	prepare_format "$format"
-	lz4 testfile
+# Not a BUG but bad design:
+# unlz4 automatically nicely chooses output file name,
+# unless stdout is not a terminal, in which case
+# the file gets piped into stdout and the script breaks.
+if [ -t 1 ]; then
+	if command -v lz4; then
+		prepare_format "$format"
+		lz4 testfile
 
-	test_suite_lsarchive testfile.lz4
+		test_suite_lsarchive testfile.lz4
 
-	test_suite_extract testfile.lz4
+		test_suite_extract testfile.lz4
+	else
+		skipped=y
+		echo "Skipping: lz4 not available."
+	fi
 else
 	skipped=y
-	echo "Skipping: lz4 not available."
+	if command -v lz4; then
+		echo "Skipping: lz4 is available but output is not a terminal."
+	else
+		echo "Skipping: lz4 not available and output is not a terminal."
+	fi
 fi
 
 
