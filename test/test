@@ -180,15 +180,17 @@ test_suite_extract() {
 		if [ "$test_force" = 'overwrite' ] && [ -n "$_hack_skip_test_force" ]; then
 			printf '\n=====\nSKIPPING --force tests for %s\n=====\n\n' "$format"
 			continue
-		fi
-		if [ "$test_force" = 'skip' ] && [ -n "$_hack_skip_test_skip" ]; then
+		elif [ "$test_force" = 'skip' ] && [ -n "$_hack_skip_test_skip" ]; then
 			printf '\n=====\nSKIPPING --skip tests for %s\n=====\n\n' "$format"
 			continue
 		fi
 		for test_input in n dir dash; do
 			for test_output_dir in n y; do
-				if [ -n "$_hack_skip_test_output_dir" ] && [ "$test_output_dir" = y ]; then
+				if [ "$test_output_dir" = y ] && [ -n "$_hack_skip_test_output_dir" ]; then
 					printf '\n=====\nSKIPPING --output-directory tests for %s\n=====\n\n' "$format"
+					continue
+				elif [ "$test_force" != 'overwrite' ] && [ "$test_output_dir" = n ] && [ -n "$_hack_skip_test_output_dir_no_force" ]; then
+					printf '\n=====\nSKIPPING tests without --force and --output-directory for %s\n=====\n\n' "$format"
 					continue
 				fi
 				for test_delete in n y; do
@@ -215,6 +217,27 @@ prepare_format() {
 		echo "Second test file for $1" > testfile\ 2
 	fi
 }
+
+
+format="deb"
+format_single=n
+if command -v dpkg-deb; then
+	prepare_format "$format"
+	mkdir -p testpkg/DEBIAN
+	mv testfile 'testfile 2' testpkg/
+	dpkg-deb -b --nocheck testpkg/ test.deb
+
+	test_suite_lsarchive test.deb
+
+	_hack_skip_test_skip=y
+	_hack_skip_test_output_dir_no_force=y
+	test_suite_extract test.deb
+	unset _hack_skip_test_output_dir_no_force
+	unset _hack_skip_test_skip
+else
+	skipped=y
+	echo "Skipping: dpkg-deb not available."
+fi
 
 
 format="LHA"

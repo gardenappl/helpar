@@ -194,9 +194,31 @@ case "$archive_path" in
 			[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
 		fi
 		;;
+	*.deb )
+		handle_delete_manually=y
+		handle_skip_manually=dir
+		handle_force=always-skip
+
+		run="dpkg-deb"
+		[ -n "$quiet" ] && run="$run --extract" || run="$run --vextract"
+		
+		if [ -n "$skip" ]; then
+			echo "Sorry, the --skip flag is not supported for deb." >&2
+			exit 1
+		fi
+		if [ -z "$output_dir" ]; then
+			if [ -z "$force" ]; then
+				echo "Sorry, extracting .deb packages to working directory might overwrite files" >&2
+				echo "Use --force or change --output-directory" >&2
+				exit 1
+			fi
+			output_dir="."
+		fi
+		run="$run DOUBLE_DASH_ARCHIVE_PATH OUTPUT_DIR"
+		;;
 	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz )
 		handle_output='mkdir'
-		handle_skip_manually=y
+		handle_skip_manually=path
 
 		case "$archive_path" in
 			*.bz )
@@ -245,7 +267,7 @@ case "$archive_path" in
 		fi
 		;;
 	?*.zst )
-		handle_skip_manually=y
+		handle_skip_manually=path
 		handle_output='mkdir'
 
 		remove_suffix='.zst'
@@ -261,7 +283,7 @@ case "$archive_path" in
 		run="$run DOUBLE_DASH_ARCHIVE_PATH"
 		;;
 	?*.lz4 )
-		handle_skip_manually=y
+		handle_skip_manually=path
 		handle_output='mkdir'
 
 		remove_suffix='.lz4'
@@ -276,7 +298,7 @@ case "$archive_path" in
 		[ -n "$output_dir" ] && run="$run DOT_OUTPUT_PATH"
 		;;
 	*.lrz )
-		handle_skip_manually=y
+		handle_skip_manually=path
 		handle_output='mkdir'
 
 		remove_suffix='.lrz'
@@ -348,7 +370,7 @@ case "$archive_path" in
 		run="$run < ARCHIVE_PATH"
 		;;
 	?*.Z )
-		handle_skip_manually=y
+		handle_skip_manually=path
 		handle_output='mkdir'
 
 		remove_suffix='.Z'
@@ -391,14 +413,26 @@ case "$archive_path" in
 		;;
 esac
 
+if [ "$handle_force" = 'always-skip' ] && [ -z "$force" ]; then
+	skip=y
+fi
+
 # Manually check if file exists
 if [ -n "$handle_skip_manually" ] && [ -n "$skip" ]; then
+	case "$handle_skip_manually" in
+		path )
+			check_path="OUTPUT_PATH"
+			;;
+		dir )
+			check_path="OUTPUT_DIR"
+			;;
+	esac
 	# We still have to --delete even if we manually skip.
 	# handle_delete_manually is handled later.
 	if [ -n "$delete" ] && [ -z "$handle_delete_manually" ]; then
-		run="([ -e OUTPUT_PATH ] && rm DOUBLE_DASH_ARCHIVE_PATH) || $run"
+		run="([ -e $check_path ] && rm DOUBLE_DASH_ARCHIVE_PATH) || $run"
 	else
-		run="[ -e OUTPUT_PATH ] || $run"
+		run="[ -e $check_path ] || $run"
 	fi
 	used_or=y
 fi

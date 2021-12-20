@@ -18,6 +18,7 @@ Supported archive and compression formats:
 | `.arj` | `unarj` | Very limited support |
 | `.bz2`, `.bz` | `bzip2` (`bunzip2`, `bzcat`) | Single-file |
 | `.cpio` | `cpio` |
+| `.deb` | `dpkg-deb` | Limited support |
 | `.gz` | `gzip` (`gunzip2`, `zcat`) | Single-file |
 | `.lha` | `lha` or `lhasa` | Limited support |
 | `.lrz` | `lrzip` (`lrunzip`, `lrzcat`) | Single-file |

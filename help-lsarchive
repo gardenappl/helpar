@@ -94,6 +94,11 @@ case "$archive_path" in
 		esac
 		run="$run ARCHIVE_PATH"
 		;;
+	*.deb )
+		archive_path_handle_dash=double-dash
+		run="dpkg-deb --contents ARCHIVE_PATH"
+		[ -n "$one_line" ] && run="$run | cut -c51- | tail -n +2"
+		;;
 	?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz | ?*.lz4 | ?*.lrz | ?*.zst | ?*.Z )
 		dont_print_pretty=y
 		if [ -n "$one_line" ]; then
