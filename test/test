@@ -2,6 +2,11 @@
 
 set -o errexit
 
+
+if [ "$1" = '--allow-skip' ]; then
+	allow_skip=y
+fi
+
 get_abs_filename() {
 	# $1 relative filename
 	echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
@@ -236,6 +241,7 @@ if command -v dpkg-deb; then
 	unset _hack_skip_test_skip
 else
 	skipped=y
+	skipped_list="$skipped_list dpkg-deb"
 	echo "Skipping: dpkg-deb not available."
 fi
 
@@ -253,6 +259,7 @@ if command -v lha; then
 	unset _hack_skip_test_skip
 else
 	skipped=y
+	skipped_list="$skipped_list lha"
 	echo "Skipping: lha not available."
 fi
 
@@ -271,6 +278,7 @@ if command -v cpio; then
 	unset _hack_skip_test_output_dir
 else
 	skipped=y
+	skipped_list="$skipped_list cpio"
 	echo "Skipping: cpio not available."
 fi
 
@@ -294,6 +302,7 @@ if command -v unarj; then
 	unset _hack_skip_test_output_dir
 else
 	skipped=y
+	skipped_list="$skipped_list unarj"
 	echo "Skipping: unarj not available."
 fi
 
@@ -314,10 +323,12 @@ if [ -t 1 ]; then
 		test_suite_extract testfile.lz4
 	else
 		skipped=y
+		skipped_list="$skipped_list lz4"
 		echo "Skipping: lz4 not available."
 	fi
 else
 	skipped=y
+	skipped_list="$skipped_list lz4 (is available but does not work when output is not a terminal)"
 	if command -v lz4; then
 		echo "Skipping: lz4 is available but output is not a terminal."
 	else
@@ -349,6 +360,7 @@ if command -v lrzip; then
 	test_suite_extract testfile.lrz
 else
 	skipped=y
+	skipped_list="$skipped_list lrzip"
 	echo "Skipping: lrzip not available."
 fi
 
@@ -364,6 +376,7 @@ if command -v zip; then
 	test_suite_extract test.zip
 else
 	skipped=y
+	skipped_list="$skipped_list zip"
 	echo "Skipping: zip not available."
 fi
 
@@ -379,6 +392,7 @@ if command -v unrar; then
 	test_suite_extract test.rar
 else
 	skipped=y
+	skipped_list="$skipped_list unrar"
 	echo "Skipping: unrar not available."
 fi
 
@@ -404,6 +418,7 @@ if command -v 7z; then
 	test_suite_extract test.7z
 else
 	skipped=y
+	skipped_list="$skipped_list 7z"
 	echo "Skipping: 7z not available."
 fi
 
@@ -419,6 +434,7 @@ if command -v bzip2; then
 	test_suite_extract testfile.bz2
 else
 	skipped=y
+	skipped_list="$skipped_list bzip2"
 	echo "Skipping: bzip2 not available."
 fi
 
@@ -434,6 +450,7 @@ if command -v gzip; then
 	test_suite_extract testfile.gz
 else
 	skipped=y
+	skipped_list="$skipped_list gzip"
 	echo "Skipping: gzip not available."
 fi
 
@@ -449,6 +466,7 @@ if command -v xz; then
 	test_suite_extract testfile.xz
 else
 	skipped=y
+	skipped_list="$skipped_list xz"
 	echo "Skipping: xz not available."
 fi
 
@@ -464,6 +482,7 @@ if command -v lzma; then
 	test_suite_extract testfile.lzma
 else
 	skipped=y
+	skipped_list="$skipped_list lzma"
 	echo "Skipping: lzma not available."
 fi
 
@@ -479,6 +498,7 @@ if command -v lzip; then
 	test_suite_extract testfile.lz
 else
 	skipped=y
+	skipped_list="$skipped_list lzop"
 	echo "Skipping: lzip not available."
 fi
 
@@ -494,6 +514,7 @@ if command -v gzip && command -v uncompress; then
 	test_suite_extract testfile.Z
 else
 	skipped=y
+	skipped_list="$skipped_list gzip (and/or) uncompress"
 	echo "Skipping: gzip and uncompress not available."
 fi
 
@@ -511,6 +532,7 @@ if command -v lzop; then
 	unset _hack_skip_test_skip
 else
 	skipped=y
+	skipped_list="$skipped_list lzop"
 	echo "Skipping: lzop not available."
 fi
 
@@ -526,13 +548,20 @@ if command -v zstd; then
 	test_suite_extract testfile.zst
 else
 	skipped=y
+	skipped_list="$skipped_list zstd"
 	echo "Skipping: zstd not available."
 fi
 
 
 if [ -n "$skipped" ]; then
 	echo "--------------------"
-	echo "Warning: some tests were skipped due to missing dependencies."
-	echo "(use 'grep Skipping:')"
-	exit 1
+	if [ -n "$allow_skip" ]; then
+		printf "Warning: some tests were skipped due to missing dependencies:\n%s\n" "$skipped_list"
+		echo "--------------------"
+	else
+		printf "Error: some tests were skipped due to missing dependencies:\n%s\n\n" "$skipped_list"
+		echo "Install these programs and re-run the test suite, or run it with the --allow-skip option"
+		echo "--------------------"
+		exit 1
+	fi
 fi
