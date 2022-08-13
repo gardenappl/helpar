@@ -16,8 +16,7 @@ TEMPDIR="$(mktemp -d)"
 trap 'rm -r "$TEMPDIR"' EXIT
 
 
-HELP_LSARCHIVE="$(get_abs_filename ../help-lsarchive)"
-HELP_EXTRACT="$(get_abs_filename ../help-extract)"
+HELPAR="$(get_abs_filename ../helpar)"
 TEST_RAR="$(get_abs_filename test.rar)"
 TEST_ARJ="$(get_abs_filename test.arj)"
 TEST_LHA="$(get_abs_filename test.lha)"
@@ -29,7 +28,7 @@ printf 'testfile\ntestfile 2\n' > expected_output
 
 
 test_lsarchive() {
-	run="$HELP_LSARCHIVE"
+	run="$HELPAR ls --yes"
 	file="$1"
 
 	# Prepare
@@ -90,7 +89,7 @@ test_suite_lsarchive() {
 }
 
 test_extract() {
-	run="$HELP_EXTRACT"
+	run="$HELPAR extract --yes"
 	file="$1"
 
 	# Prepare
@@ -115,7 +114,7 @@ test_extract() {
 	if [ "$format_single" = y ]; then
 		# Archive path may have changed, let's figure the new name
 		# for output file
-		extract_testfile="$("$HELP_LSARCHIVE" -1 -- "$file")"
+		extract_testfile="$("$HELPAR" ls -y1 -- "$file")"
 	else
 		extract_testfile='testfile'
 	fi
