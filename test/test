@@ -104,6 +104,9 @@ test_extract() {
 		mkdir input-dir
 		cp "$file" input-dir
 		file="input-dir/$file"
+	elif [ "$test_input" = 'injection' ]; then
+		cp -- "$file" "${file};false;#$file"
+		file="${file};false;#$file"
 	elif [ "$test_input" = 'dash' ]; then
 		cp -- "$file" "-dash$file"
 		file="-dash$file"
@@ -132,6 +135,8 @@ test_extract() {
 
 	if [ "$test_input" = 'dash' ]; then
 		run="$run -- $file"
+	elif [ "$test_input" = 'injection' ]; then
+		run="$run '$file'"
 	else
 		run="$run $file"
 	fi
@@ -189,7 +194,7 @@ test_suite_extract() {
 			printf '\n=====\nSKIPPING --skip tests for %s\n=====\n\n' "$format"
 			continue
 		fi
-		for test_input in n dir dash; do
+		for test_input in n dir dash injection; do
 			for test_output_dir in n y; do
 				if [ "$test_output_dir" = y ] && [ -n "$_hack_skip_test_output_dir" ]; then
 					printf '\n=====\nSKIPPING --output-directory tests for %s\n=====\n\n' "$format"
