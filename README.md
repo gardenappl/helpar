@@ -31,5 +31,5 @@ Supported archive and compression formats:
 | `.Z` | `uncompress` | Single-file |
 | Everything else | `7z` | N/A |
 
-* "Single-file" refers to compression tools which don't support archival (only work on single files). The `help-lsarchive` command is useless in these cases.
+* "Single-file" refers to compression tools which don't support archival (only work on single files). The `list` command is useless in these cases.
 

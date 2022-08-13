@@ -32,9 +32,6 @@ simplify_home() {
 
 
 
-
-
-
 # Helper function for tools like xzcat, bzcat
 # If the path to archive contains slashes (e.g. 'dir/file.xz')
 # then force outputting to current directory, as opposed to 'dir/file'
@@ -609,7 +606,7 @@ make_extract_command() {
 }
 
 
-helpar_help_extract() {
+helpar_help_ls() {
 	cat <<-_EOF
 	Usage: helpar ls ARCHIVE [options...]
 	    or helpar list ARCHIVE [options...]
@@ -658,6 +655,11 @@ make_ls_command() {
 				;;
 		esac
 	done
+	
+	if [ -z "$archive_path" ]; then
+		helpar_help_ls
+		exit 1
+	fi
 
 	case "$archive_path" in
 		*.zip )
@@ -845,10 +847,10 @@ do_command() {
 
 helpar_print_usage() {
 	cat <<-_EOF
-Available commands:
-    cat      Print out a single file from an archive
-    extract  Extract files from an archive, or decompress a compressed file
-    ls,list  List files in an archive, and other information
+	Available commands:
+	    c, cat       Print out a single file from an archive
+	    e, extract   Extract files from an archive, or decompress a compressed file
+	    l, ls, list  List files in an archive, and other information
 	_EOF
 }
 
@@ -866,7 +868,7 @@ helpar_help_generic() {
 
 while true; do
 	case "$1" in
-		extract )
+		e|extract )
 			shift
 			if [ -n "$helpar_help" ]; then
 				helpar_help_extract
@@ -876,7 +878,7 @@ while true; do
 			fi
 			break
 			;;
-		ls|list )
+		l|ls|list )
 			shift
 			if [ -n "$helpar_help" ]; then
 				helpar_help_ls
