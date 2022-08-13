@@ -1,0 +1,163 @@
+#!/bin/sh
+
+set -o errexit
+set -o noglob
+
+
+# Sanitize string so it's usable as an argument
+shell_quote() {
+	# Escape single quotes
+	escaped=$(echo "$1" | sed "s/'/'\"'\"'/g")
+
+	case "$escaped" in
+		'' )
+			# Empty string
+			;;
+		*[![:alnum:]_\./~-]* )
+			# Argument is not clean, needs quoting
+			printf '%s' "'$escaped'"
+			;;
+		* )
+			# Argument contains only safe characters
+			printf '%s' "$escaped"
+			;;
+	esac
+}
+
+simplify_home() {
+	echo "$1" | awk -v home="$HOME" '{ sub("^"home, "~"); print }'
+}
+
+
+options=hcS
+longopts=help,command,simulate
+parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
+eval set -- "$parsed"
+
+
+while true; do
+	case "$1" in 
+		-c | --command | -S | --simulate )
+			only_print_command=y
+			shift
+			;;
+		-- )
+			shift
+			archive_path="$1"
+			shift
+			break
+			;;
+	esac
+done
+
+case "$archive_path" in
+	*.zip ) helpar_tools="unzip 7z" ;;
+	*.rar ) helpar_tools="unrar 7z" ;;
+	* )
+		>&2 echo "Warning: not entirely sure about this file format"
+		helpar_tools="7z" ;;
+esac
+
+
+try_tools() {
+	for tool in $@; do
+		if command -v "$tool" > /dev/null; then 
+			echo "$tool"
+			return
+		fi
+	done
+	>&2 echo "Error: no extraction tool installed"
+}
+
+>&2 printf 'Possible tools: \033[38;5;12m%s\033[m\n' "$(printf '%s' "$helpar_tools" | sed 's/ /, /g')"
+helpar_tool="$(try_tools $helpar_tools)"
+>&2 printf 'Selected tool: \033[38;5;12m%s\033[m\n' "$helpar_tool"
+
+
+# We will manually replace ARCHIVE_PATH, etc with the needed arguments
+# (with or without color formatting)
+
+case "$helpar_tool" in
+	unzip )
+		# Info-ZIP does not recognize --
+		archive_path_handle_dash=leading-dot
+
+		# handles ? and * and [charlist], * can be multiple dirs
+		handles_wildcard=y
+		escape_square_brackets=y
+
+		run="unzip -p ARCHIVE_PATH ARGS"
+		;;
+	unrar )
+		archive_path_handle_dash='double-dash'
+
+		# handles ? and *, * can be multiple dirs
+		handles_wildcard=y
+
+		run="unrar p ARCHIVE_PATH ARGS"
+		;;
+	7z )
+		archive_path_handle_dash='double-dash'
+
+		# handles ? and *, * can be multiple dirs if -r switch is added
+		handles_wildcard=y
+		
+		run="7z e -so ARCHIVE_PATH ARGS"
+		;;
+	* )
+		>&2 printf 'Error: cat command not yet supported for %s' "$helpar_tool"
+esac
+
+
+case "$archive_path" in
+	-* )
+		if [ "$archive_path_handle_dash" = 'double-dash' ]; then
+			archive_path_arg_prefix="-- "
+		elif [ "$archive_path_handle_dash" = 'leading-dot' ]; then
+			archive_path="./$archive_path"
+		fi
+		;;
+	* )
+		;;
+esac
+
+
+archive_path_arg="$(shell_quote "$archive_path")"
+archive_path_display="$(simplify_home "$archive_path_arg")"
+archive_dir_arg="$(shell_quote "$archive_dir")"
+archive_dir_display="$(simplify_home "$archive_dir_arg")"
+
+files_args="$(for arg in $@; do
+	shell_quote "$arg"
+	printf ' '
+done)"
+
+
+awk_program='{
+	gsub("ARCHIVE_PATH", archive_path);
+	gsub("ARGS", files_args);
+	print;
+}'
+
+if [ -z "$only_print_command" ] && [ -z "$dont_print_pretty" ]; then
+	# Pretty string starts as bright blue, then reset at the end
+	# Arguments in pretty string are green, then the following text is bright blue
+
+	printf '\033[38;5;12m%s\033[m' "$run" | >&2 awk \
+		-v files_args="\033[38;5;2m$files_args\033[38;5;12m" \
+		-v archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_display\033[38;5;12m" \
+		"$awk_program"
+	>&2 echo
+fi
+
+
+run_command="$(printf '%s' "$run" | awk \
+	-v files_args="$files_args" \
+	-v archive_path="$archive_path_arg_prefix$archive_path_arg" \
+	"$awk_program")"
+
+if [ -n "$only_print_command" ]; then
+	echo "$run_command"
+else
+	( eval "$run_command" )
+fi
