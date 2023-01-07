@@ -853,9 +853,9 @@ do_command() {
 helpar_print_usage() {
 	cat <<-_EOF
 	Available commands:
-	    c, cat       Print out a single file from an archive
-	    e, extract   Extract files from an archive, or decompress a compressed file
-	    l, ls, list  List files in an archive, and other information
+	    c, cat        Print out a single file from an archive
+	    e, x, extract Extract files from an archive, or decompress a compressed file
+	    l, ls, list   List files in an archive, and other information
 	_EOF
 }
 
@@ -873,7 +873,7 @@ helpar_help_generic() {
 
 while true; do
 	case "$1" in
-		e|extract )
+		e|x|extract )
 			shift
 			if [ -n "$helpar_help" ]; then
 				helpar_help_extract
