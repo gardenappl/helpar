@@ -27,7 +27,7 @@ cd "$TEMPDIR"
 printf 'testfile\ntestfile 2\n' > expected_output
 
 
-test_lsarchive() {
+test_ls() {
 	run="$HELPAR ls --yes"
 	file="$1"
 
@@ -74,7 +74,7 @@ test_lsarchive() {
 	fi
 }
 
-test_suite_lsarchive() {
+test_suite_ls() {
 	echo
 	for test_oneline in n y; do
 		if [ -n "$_hack_skip_test_oneline" ] && [ "$test_oneline" = y ]; then
@@ -83,7 +83,7 @@ test_suite_lsarchive() {
 		fi
 		for test_dash in n y; do
 			printf 'Dash: %s, oneline: %s\n' "$test_dash" "$test_oneline"
-			test_lsarchive "$1"
+			test_ls "$1"
 		done
 	done
 }
@@ -236,7 +236,7 @@ if command -v dpkg-deb; then
 	mv testfile 'testfile 2' testpkg/
 	dpkg-deb -b --nocheck testpkg/ test.deb
 
-	test_suite_lsarchive test.deb
+	test_suite_ls test.deb
 
 	_hack_skip_test_skip=y
 	_hack_skip_test_output_dir_no_force=y
@@ -256,7 +256,7 @@ if command -v lha; then
 	prepare_format "$format"
 	cp "$TEST_LHA" .
 
-	test_suite_lsarchive test.lha
+	test_suite_ls test.lha
 
 	_hack_skip_test_skip=y
 	test_suite_extract test.lha
@@ -275,7 +275,7 @@ if command -v cpio; then
 	prepare_format "$format"
 	printf 'testfile\ntestfile 2' | cpio -o > test.cpio
 
-	test_suite_lsarchive test.cpio
+	test_suite_ls test.cpio
 
 	_hack_skip_test_output_dir=y
 	test_suite_extract test.cpio
@@ -294,7 +294,7 @@ if command -v unarj; then
 	cp "$TEST_ARJ" test.arj
 
 	_hack_skip_test_oneline=y
-	test_suite_lsarchive test.arj
+	test_suite_ls test.arj
 	unset _hack_skip_test_oneline
 
 	_hack_skip_test_output_dir=y
@@ -322,7 +322,7 @@ if [ -t 1 ]; then
 		prepare_format "$format"
 		lz4 testfile
 
-		test_suite_lsarchive testfile.lz4
+		test_suite_ls testfile.lz4
 
 		test_suite_extract testfile.lz4
 	else
@@ -349,7 +349,7 @@ if command -v lrzip; then
 	tar cvf test.tar testfile 'testfile 2'
 	lrzip test.tar
 
-	test_suite_lsarchive test.tar.lrz
+	test_suite_ls test.tar.lrz
 
 	test_suite_extract test.tar.lrz
 
@@ -359,7 +359,7 @@ if command -v lrzip; then
 	prepare_format "$format"
 	lrzip testfile
 
-	test_suite_lsarchive testfile.lrz
+	test_suite_ls testfile.lrz
 
 	test_suite_extract testfile.lrz
 else
@@ -375,7 +375,7 @@ if command -v zip; then
 	prepare_format "$format"
 	zip test.zip testfile testfile\ 2
 
-	test_suite_lsarchive test.zip
+	test_suite_ls test.zip
 
 	test_suite_extract test.zip
 else
@@ -391,7 +391,7 @@ if command -v unrar; then
 	prepare_format "$format"
 	cp "$TEST_RAR" test.rar
 
-	test_suite_lsarchive test.rar
+	test_suite_ls test.rar
 
 	test_suite_extract test.rar
 else
@@ -406,7 +406,7 @@ format_single=n
 prepare_format "$format"
 tar cvf test.tar testfile testfile\ 2
 
-test_suite_lsarchive test.tar
+test_suite_ls test.tar
 
 test_suite_extract test.tar
 
@@ -417,7 +417,7 @@ if command -v 7z; then
 	prepare_format "$format"
 	7z a test.7z testfile testfile\ 2
 
-	test_suite_lsarchive test.7z
+	test_suite_ls test.7z
 
 	test_suite_extract test.7z
 else
@@ -433,7 +433,7 @@ if command -v bzip2; then
 	prepare_format "$format"
 	bzip2 testfile
 
-	test_suite_lsarchive testfile.bz2
+	test_suite_ls testfile.bz2
 
 	test_suite_extract testfile.bz2
 else
@@ -449,7 +449,7 @@ if command -v gzip; then
 	prepare_format "$format"
 	gzip testfile
 
-	test_suite_lsarchive testfile.gz
+	test_suite_ls testfile.gz
 
 	test_suite_extract testfile.gz
 else
@@ -465,7 +465,7 @@ if command -v xz; then
 	prepare_format "$format"
 	xz testfile
 
-	test_suite_lsarchive testfile.xz
+	test_suite_ls testfile.xz
 
 	test_suite_extract testfile.xz
 else
@@ -481,7 +481,7 @@ if command -v lzma; then
 	prepare_format "$format"
 	lzma testfile
 
-	test_suite_lsarchive testfile.lzma
+	test_suite_ls testfile.lzma
 
 	test_suite_extract testfile.lzma
 else
@@ -497,7 +497,7 @@ if command -v lzip; then
 	prepare_format "$format"
 	lzip testfile
 
-	test_suite_lsarchive testfile.lz
+	test_suite_ls testfile.lz
 
 	test_suite_extract testfile.lz
 else
@@ -513,7 +513,7 @@ if command -v gzip && command -v uncompress; then
 	prepare_format "$format"
 	gzip testfile -S .Z
 
-	test_suite_lsarchive testfile.Z
+	test_suite_ls testfile.Z
 
 	test_suite_extract testfile.Z
 else
@@ -529,7 +529,7 @@ if command -v lzop; then
 	prepare_format "$format"
 	lzop -P testfile 'testfile 2' -o test.lzo
 
-	test_suite_lsarchive test.lzo
+	test_suite_ls test.lzo
 
 	_hack_skip_test_skip=y
 	test_suite_extract test.lzo
@@ -547,7 +547,7 @@ if command -v zstd; then
 	prepare_format "$format"
 	zstd testfile
 
-	test_suite_lsarchive testfile.zst
+	test_suite_ls testfile.zst
 
 	test_suite_extract testfile.zst
 else
