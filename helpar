@@ -6,24 +6,29 @@ set -o errexit
 version='0.0.1'
 
 
-# Sanitize string so it's usable as an argument
-shell_quote() {
+shell_quote_and_awk_sanitize() {
+	# Sanitize string so it's usable as a shell argument
+	
 	# Escape single quotes
 	escaped=$(echo "$1" | sed "s/'/'\"'\"'/g")
 
 	case "$escaped" in
 		'' )
 			# Empty string
+			return
 			;;
 		*[![:alnum:]_\./~-]* )
 			# Argument is not clean, needs quoting
-			echo "'$escaped'"
+			escaped="'$escaped'"
 			;;
 		* )
 			# Argument contains only safe characters
-			echo "$escaped"
+			escaped="$escaped"
 			;;
 	esac
+
+	# Sanitize further so it's usable as an argument to AWK 'sub' functions
+	echo "$escaped" | sed 's/\\/\\\\/g; s/&/\\\\&/g'
 }
 
 simplify_home() {
@@ -218,14 +223,14 @@ make_extract_command() {
 
 			if [ "$use_standard_tar" = y ]; then
 				# Handle archive path which starts with -
-				# We put the --directory argument at the end, so we can't use --
+				# We put the -C argument at the end, so we can't use --
 				if [ "$use_standard_tar_stdin" = n ]; then
 					run="$run DOT_ARCHIVE_PATH"
 				fi
 
 				[ -n "$skip" ] && run="$run --skip-old-files"
 				[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
-				[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
+				[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
 			fi
 			;;
 		*.deb )
@@ -490,9 +495,9 @@ make_extract_command() {
 		run="$(printf 'mkdir -p DOUBLE_DASH_OUTPUT_DIR\n%s' "$run")"
 	fi
 
-	archive_path_arg="$(shell_quote "$archive_path")"
-	output_dir_arg="$(shell_quote "$output_dir")"
-	password_arg="$(shell_quote "$password")"
+	archive_path_arg="$(shell_quote_and_awk_sanitize "$archive_path")"
+	output_dir_arg="$(shell_quote_and_awk_sanitize "$output_dir")"
+	password_arg="$(shell_quote_and_awk_sanitize "$password")"
 
 	base_name_no_ext="$(basename -- "$archive_path" "$remove_suffix")"
 	case "$output_dir" in
@@ -516,7 +521,7 @@ make_extract_command() {
 			;;
 	esac
 
-	output_path_arg="$(shell_quote "$output_path")"
+	output_path_arg="$(shell_quote_and_awk_sanitize "$output_path")"
 
 	case "$archive_path_arg" in
 		-* )
@@ -797,9 +802,9 @@ make_ls_command() {
 	esac
 
 
-	archive_path_arg="$(shell_quote "$archive_path")"
+	archive_path_arg="$(shell_quote_and_awk_sanitize "$archive_path")"
 	archive_path_display="$(simplify_home "$archive_path_arg")"
-	archive_dir_arg="$(shell_quote "$archive_dir")"
+	archive_dir_arg="$(shell_quote_and_awk_sanitize "$archive_dir")"
 	archive_dir_display="$(simplify_home "$archive_dir_arg")"
 
 
