@@ -23,7 +23,6 @@ shell_quote_and_awk_sanitize() {
 			;;
 		* )
 			# Argument contains only safe characters
-			escaped="$escaped"
 			;;
 	esac
 
@@ -63,53 +62,77 @@ force_output_dir_to_current_dir() {
 
 get_tools_for_format() {
 	case "$1" in
-		*.zip ) echo "unzip bsdtar 7z" ;;
-		*.rar ) echo "bsdtar unrar 7z" ;;
+		*.rar ) echo "unrar bsdtar 7z" ;;
 		*.tar.lrz )
 			# In some cases we invoke 'tar' directly,
 			# but lrzuntar depends on 'tar' so we don't specify it
-			echo "lrzuntar bsdtar" 
+			if [ "$helpar_command" == 'extract' ]; then
+				echo "lrzuntar bsdtar" 
+			elif [ "$helpar_command" == 'ls' ]; then
+				echo "lrzcat bsdtar" 
+			fi
+			return
 			;;
 		*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
 			echo "tar bsdtar 7z"
+			return
 			;;
 		*.7z )  echo "7z bsdtar" ;;
 		*.deb ) echo "dpkg-deb 7z" ;;
-		?*.bz ) echo "bsdtar bunzip2 7z" ;;
-		?*.bz2 ) 
-			echo "bunzip2 bsdtar 7z" 
-			;;
-		?*.gz ) echo "gunzip bsdtar 7z" ;;
-		?*.xz ) echo "unxz bsdtar" ;;
-		?*.lzma )
-			echo "unlzma bsdtar 7z"
-			;;
-		?*.lz ) echo "lzip bsdtar" ;;
-		?*.zst ) 
-			echo "unzstd bsdtar" 
-			;;
-		?*.lz4 )
-			echo "unlz4 bsdtar" 
-			;;
-		*.lrz ) echo "lrunzip" ;;
-		?*.lzo )
-			echo "lzop bsdtar"
-			;;
 		*.arj ) echo "unarj 7z" ;;
 		*.lha ) echo "lha bsdtar" ;;
+		?*.lzo ) 
+			echo "lzop bsdtar" ;;
 		*.cpio ) 
 			echo "cpio bsdtar"
 			;;
-		?*.Z )  echo "uncompress bsdtar" ;;
-		* )
-			>&2 echo "Warning: not entirely sure about this file format"
-			echo "bsdtar 7z" ;;
+	esac
+
+	case "$helpar_command" in
+		extract )
+			case "$1" in
+				*.zip )   echo "unzip bsdtar 7z" ;;
+				?*.bz )   echo "bunzip2 bsdtar 7z" ;;
+				?*.bz2 )  echo "bunzip2 bsdtar 7z" ;;
+				?*.gz )   echo "gunzip bsdtar 7z" ;;
+				?*.xz )   echo "unxz bsdtar" ;;
+				?*.lzma ) echo "unlzma bsdtar 7z" ;;
+				?*.zst )  echo "unzstd bsdtar" ;;
+				?*.lz4 )  echo "unlz4 bsdtar" ;;
+				?*.lrz )  echo "lrunzip" ;;
+				?*.lz )   echo "lzip bsdtar" ;;
+				?*.Z )    echo "uncompress bsdtar" ;;
+			esac
+			;;
+		ls )
+			case "$1" in
+				*.zip ) echo "zipinfo bsdtar 7z" ;;
+				?*.bz | ?*.bz2 | ?*.gz | ?*.xz | ?*.lzma | ?*.zst | ?*.lz4 | ?*.lrz | ?*.lz | ?*.Z )
+					echo "echo"
+					;;
+			esac
+			;;
+		cat )
+			case "$1" in
+				*.zip )   echo "unzip bsdtar 7z" ;;
+				?*.bz )   echo "bzcat bsdtar 7z" ;;
+				?*.bz2 )  echo "bzcat bsdtar 7z" ;;
+				?*.gz )   echo "zcat bsdtar 7z" ;;
+				?*.xz )   echo "xzcat bsdtar" ;;
+				?*.lzma ) echo "lzcat bsdtar 7z" ;;
+				?*.zst )  echo "zstdcat bsdtar" ;;
+				?*.lz4 )  echo "lz4cat bsdtar" ;;
+				?*.lrz )  echo "lrzcat" ;;
+				?*.lz )   echo "lzip bsdtar" ;;
+				?*.Z )    echo "uncompress bsdtar" ;;
+			esac
+			;;
 	esac
 }
 
 
 try_tools() {
-	for tool in $@; do
+	for tool in "$@"; do
 		if command -v "$tool" > /dev/null; then 
 			echo "$tool"
 			return
@@ -126,9 +149,20 @@ select_tool_for_format() {
 		return
 	fi
 	helpar_tools="$(get_tools_for_format "$1")"
+	if [ -n "$only_print_tools" ] && [ -z "$helpar_tools" ]; then
+		if [ -z "$quiet" ]; then
+			>&2 printf 'Error: not familiar with this file format.'
+		fi
+		exit 1
+	fi
 
 	if [ -z "$only_run_command" ]; then
-		>&2 printf 'Possible tools: \033[38;5;12m%s\033[m\n' "$(printf '%s' "$helpar_tools" | sed 's/ /, /g')"
+		if [ -n "$helpar_tools" ]; then
+			>&2 printf 'Possible tools: \033[38;5;12m%s\033[m\n' "$(printf '%s' "$helpar_tools" | sed 's/ /, /g')"
+		else
+			>&2 printf 'Warning: not familiar with this file format. Will try bsdtar or 7z.'
+			helpar_tools="bsdtar 7z"
+		fi
 	fi
 
 	helpar_tool="$(try_tools $helpar_tools)"
@@ -140,7 +174,7 @@ select_tool_for_format() {
 
 
 
-helpar_help_extract() {
+helpar_extract_help() {
 	cat <<-_EOF
 	Usage: helpar extract ARCHIVE [options...]
 		
@@ -161,7 +195,7 @@ helpar_help_extract() {
 	_EOF
 }
 
-make_extract_command() {
+helpar_extract_get_opts() {
 	options=ho:X:p:fdqscSryt:T
 	longopts=help,to:,output-directory:,extract-to:,password:,force,force-overwrite,delete,quiet,force-skip,skip,command,simulate,run,yes,tool:,tools
 	parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
@@ -171,7 +205,7 @@ make_extract_command() {
 	while true; do
 		case "$1" in 
 			-h | --help )
-				helpar_help_extract
+				helpar_extract_help
 				exit 0
 				;;
 			-r | --run )
@@ -228,7 +262,7 @@ make_extract_command() {
 	done
 	
 	if [ -z "$archive_path" ]; then
-		helpar_help_extract
+		helpar_extract_help
 		exit 1
 	fi
 
@@ -236,501 +270,10 @@ make_extract_command() {
 		>&2 echo "Error: can't --skip and --force-overwrite at the same time."
 		exit 1
 	fi
-
-	if [ -n "$only_print_tools" ]; then
-		only_run_command=y
-		run_command="echo $(get_tools_for_format "$archive_path")"
-		return
-	fi
-
-	tool="$(select_tool_for_format "$archive_path" "extract")"
-
-	case "$tool" in
-		unzip )
-			handle_delete_manually=y
-
-			run="unzip"
-
-			[ -n "$force" ] && run="$(add_short_opt "$run" o)"
-			[ -n "$skip" ] && run="$(add_short_opt "$run" n)"
-			[ -n "$quiet" ] && run="$(add_short_opt "$run" q)"
-			
-			# Handle password which starts with -
-			case "$password" in
-				'' )
-					# No password
-					;;
-				* )
-					run="$run -PPASSWORD"
-					;;
-			esac
-
-			# Info-ZIP does not recognize --
-			run="$run DOT_ARCHIVE_PATH"
-
-			[ -n "$output_dir" ] && run="$run -d OUTPUT_DIR"
-			;;
-		unrar )
-			handle_delete_manually=y
-
-			run="unrar x"
-
-			[ -n "$force" ] && run="$run -o+"
-			[ -n "$skip" ] && run="$run -o-" # Skips files but sometimes exits with an error anyway, sigh...
-			[ -n "$quiet" ] && run="$run -idq"
-			[ -n "$password" ] && run="$run -pPASSWORD"
-
-			run="$run DOUBLE_DASH_ARCHIVE_PATH"
-
-			# unrar always treats the last argument as the output dir,
-			# but only if it has a trailing slash
-			if [ -n "$output_dir" ]; then
-				output_dir="$output_dir/"
-				run="$run OUTPUT_DIR"
-			fi
-			;;
-		tar | lrzuntar )
-			handle_delete_manually=y
-			handle_output='mkdir'
-
-			use_standard_tar=y
-			use_standard_tar_stdin=n
-
-			case "$archive_path" in
-				*.tar.gz | *.tgz )
-					[ -n "$quiet" ] && run="tar xzf" || run="tar xzvf"
-					;;
-				*.tar.bz | *.tbz )
-					[ -n "$quiet" ] && run="tar xjf" || run="tar xjvf"
-					;;
-				*.tar.lrz )
-					# Special case, not handled by GNU tar
-					# BUG?: man lrzip says it does not override by default, but lrzuntar does
-					# BUG?: lrzuntar can't handle --long options
-					# BUG?: can't specify password as arg
-					if [ -n "$force" ]; then
-						run="lrzuntar"
-						unset handle_delete_manually
-						if [ -n "$quiet" ]; then
-							# BUG
-							echo "Sorry, the --quiet option is not supported by lrzuntar." >&2
-							exit 1
-						fi
-						[ -n "$delete" ] && run="$(add_short_opt "$run" D)"
-						[ -n "$output_dir" ] && run="$run -O OUTPUT_DIR"
-						run="$run DOUBLE_DASH_ARCHIVE_PATH"
-					
-						use_standard_tar=n
-					else
-						if [ -n "$quiet" ]; then
-							run="lrzcat --very-quiet DOUBLE_DASH_ARCHIVE_PATH | tar x"
-						else
-							run="lrzcat DOUBLE_DASH_ARCHIVE_PATH | tar xv"
-						fi
-						use_standard_tar_stdin=y
-					fi
-					;;
-				* )
-					[ -n "$quiet" ] && run="tar xf" || run="tar xvf"
-					;;
-			esac
-
-			if [ "$use_standard_tar" = y ]; then
-				# Handle archive path which starts with -
-				# We put the -C argument at the end, so we can't use --
-				if [ "$use_standard_tar_stdin" = n ]; then
-					run="$run DOT_ARCHIVE_PATH"
-				fi
- 
-				[ -n "$skip" ] && run="$run --skip-old-files"
-				[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
-				[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
-			fi
-			;;
-		bsdtar )
-			handle_delete_manually=y
-			handle_output='mkdir'
-
-			[ -n "$quiet" ] && run="bsdtar xf" || run="bsdtar xvf"
-
-			# Handle archive path which starts with -
-			# We put the -C argument at the end, so we can't use --
-			run="$run DOT_ARCHIVE_PATH"
-
-			[ -z "$force" ] && run="$run -k"
-			[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
-			[ -n "$password" ] && run="$run --passphrase PASSWORD"
-			;;
-		dpkg-deb )
-			handle_delete_manually=y
-			handle_skip_manually=dir
-			handle_force=always-skip
-
-			run="dpkg-deb"
-			[ -n "$quiet" ] && run="$run --extract" || run="$run --vextract"
-			
-			if [ -n "$skip" ]; then
-				echo "Sorry, the --skip flag is not supported for deb." >&2
-				exit 1
-			fi
-			if [ -z "$output_dir" ]; then
-				if [ -z "$force" ]; then
-					echo "Sorry, extracting .deb packages to working directory might overwrite files" >&2
-					echo "Use --force or change --output-directory" >&2
-					exit 1
-				fi
-				output_dir="."
-			fi
-			run="$run DOUBLE_DASH_ARCHIVE_PATH OUTPUT_DIR"
-			;;
-		bunzip2 | gunzip | unxz | unlzma | lzip )
-			handle_output='mkdir'
-			handle_skip_manually=path
-
-			case "$archive_path" in
-				*.bz )
-					remove_suffix='.bz'
-					run_unzip="bunzip2"
-					run_cat="bzcat"
-					;;
-				*.bz2 )
-					remove_suffix='.bz2'
-					run_unzip="bunzip2"
-					run_cat="bzcat"
-					;;
-				*.gz )
-					remove_suffix='.gz'
-					run_unzip="gunzip"
-					run_cat="zcat"
-					;;
-				*.xz )
-					remove_suffix='.xz'
-					run_unzip="unxz"
-					run_cat="xzcat"
-					;;
-				*.lzma )
-					remove_suffix='.lzma'
-					run_unzip="unlzma"
-					run_cat="lzcat"
-					;;
-				*.lz )
-					remove_suffix='.lz'
-					run_unzip="lzip -d"
-					run_cat="lzip -d --stdout"
-					;;
-			esac
-
-			force_output_dir_to_current_dir
-
-			if [ -n "$output_dir" ]; then
-				handle_delete_manually=y
-				handle_force=noclobber
-				run="$run_cat DOUBLE_DASH_ARCHIVE_PATH > OUTPUT_PATH"
-			else
-				run="$run_unzip"
-				[ -z "$delete" ] && run="$run --keep"
-				[ -n "$force" ] && run="$run --force"
-				run="$run DOUBLE_DASH_ARCHIVE_PATH"
-			fi
-			;;
-		unzstd )
-			handle_skip_manually=path
-			handle_output='mkdir'
-
-			remove_suffix='.zst'
-			run="unzstd"
-
-			force_output_dir_to_current_dir
-
-			[ -n "$quiet" ] && run="$run --quiet"
-			[ -n "$delete" ] && run="$run --rm"
-			[ -n "$force" ] && run="$run --force"
-			[ -n "$output_dir" ] && run="$run --output-dir-flat=NO_TILDE_OUTPUT_DIR"
-
-			run="$run DOUBLE_DASH_ARCHIVE_PATH"
-			;;
-		unlz4 )
-			handle_skip_manually=path
-			handle_output='mkdir'
-
-			remove_suffix='.lz4'
-			run="unlz4"
-
-			force_output_dir_to_current_dir
-
-			[ -n "$quiet" ] && run="$run --quiet"
-			[ -n "$delete" ] && run="$run --rm"
-			[ -n "$force" ] && run="$run --force"
-			run="$run DOUBLE_DASH_ARCHIVE_PATH"
-			[ -n "$output_dir" ] && run="$run DOT_OUTPUT_PATH"
-			;;
-		lrunzip )
-			handle_skip_manually=path
-			handle_output='mkdir'
-
-			remove_suffix='.lrz'
-			run="lrunzip"
-
-			[ -n "$quiet" ] && run="$run --very-quiet"
-			[ -n "$delete" ] && run="$run --delete"
-			[ -n "$force" ] && run="$run --force"
-
-			force_output_dir_to_current_dir
-			if [ -n "$output_dir" ]; then
-				run="$run --outdir OUTPUT_DIR"
-			fi
-			run="$run DOUBLE_DASH_ARCHIVE_PATH"
-			;;
-		lzop )
-			handle_output='mkdir'
-
-			run="lzop -x"
-
-			[ -n "$quiet" ] && run="$run --quiet"
-			[ -n "$delete" ] && run="$run --delete"
-			[ -n "$force" ] && run="$run --force"
-			if [ -n "$skip" ]; then
-				echo "Sorry, the --skip flag is not supported for lzop." >&2
-				exit 1
-			fi
-
-			[ -n "$output_dir" ] && run="$run --path=NO_TILDE_OUTPUT_DIR"
-
-			run="$run DOUBLE_DASH_ARCHIVE_PATH"
-			;;
-		unarj )
-			handle_delete_manually=y
-
-			if [ -n "$quiet" ] || [ -n "$force" ] || [ -n "$skip" ] || [ -n "$output_dir" ]; then
-				echo "Sorry, unarj does not support any options." >&2
-				exit 1
-			fi
-
-			run="unarj x ARCHIVE_PATH"
-			;;
-		lha )
-			handle_delete_manually=y
-
-			run="lha x"
-
-			# Free lhasa does not support short opts
-			[ -n "$quiet" ] && run="${run}q"
-			[ -n "$force" ] && run="${run}f"
-			if [ -n "$skip" ]; then
-				echo "Sorry, the --skip flag is not supported for lha." >&2
-			fi
-			[ -n "$output_dir" ] && run="${run}w=NO_TILDE_OUTPUT_DIR"
-
-			# The non-free lha supports --
-			run="$run DOT_ARCHIVE_PATH"
-			;;
-		cpio )
-			# BUG?: GNU cpio creates output directory automatically, but writes nothing and crashes
-			handle_delete_manually=y
-
-			run="cpio -i"
-
-			[ -n "$quiet" ] && run="$run -d --quiet" || run="$run -vd"
-			[ -n "$force" ] && run="$run --unconditional"
-			[ -n "$output_dir" ] && run="$run --directory=NO_TILDE_OUTPUT_DIR"
-			
-			run="$run < ARCHIVE_PATH"
-			;;
-		uncompress )
-			handle_skip_manually=path
-			handle_output='mkdir'
-
-			remove_suffix='.Z'
-			run="uncompress"
-
-			force_output_dir_to_current_dir
-
-			# Let's be strictly POSIX-compliant in the case of .Z
-			if [ -z "$delete" ] || [ -n "$output_dir" ]; then
-				handle_delete_manually=y
-				handle_force=noclobber
-				run="uncompress -c DOT_ARCHIVE_PATH > OUTPUT_PATH"
-			elif [ -n "$force" ]; then
-				run="uncompress -f DOT_ARCHIVE_PATH"
-			else
-				run="uncompress DOT_ARCHIVE_PATH"
-			fi
-			;;
-		7z )
-			handle_delete_manually=y
-
-			run="7z x"
-
-			[ -n "$force" ] && run="$run -aoa"
-			[ -n "$skip" ] && run="$run -aos"
-			[ -n "$output_dir" ] && run="$run -oNO_TILDE_OUTPUT_DIR"
-			[ -n "$password" ] && run="$run -pPASSWORD"
-			[ -n "$quiet" ] && run="$run -bd"
-
-			run="$run DOUBLE_DASH_ARCHIVE_PATH"
-			;;
-	esac
-
-	if [ "$handle_force" = 'always-skip' ] && [ -z "$force" ]; then
-		skip=y
-	fi
-
-	# Manually check if file exists
-	if [ -n "$handle_skip_manually" ] && [ -n "$skip" ]; then
-		case "$handle_skip_manually" in
-			path )
-				check_path="OUTPUT_PATH"
-				;;
-			dir )
-				check_path="OUTPUT_DIR"
-				;;
-		esac
-		# We still have to --delete even if we manually skip.
-		# handle_delete_manually is handled later.
-		if [ -n "$delete" ] && [ -z "$handle_delete_manually" ]; then
-			run="([ -e $check_path ] && rm DOUBLE_DASH_ARCHIVE_PATH) || $run"
-		else
-			run="[ -e $check_path ] || $run"
-		fi
-		used_or=y
-	fi
-
-	# Manually remove archive on successful extraction
-	if [ -n "$handle_delete_manually" ] && [ -n "$delete" ]; then
-		if [ -n "$used_or" ]; then
-			run="($run) && rm DOUBLE_DASH_ARCHIVE_PATH"
-		else
-			run="$run && rm DOUBLE_DASH_ARCHIVE_PATH"
-		fi
-	fi
-
-	# 'set -o noclobber' to prevent overwriting files by default
-	if [ "$handle_force" = 'noclobber' ] && [ -z "$force" ] && [ -z "$skip" ]; then
-		run="$(printf 'set -o noclobber\n%s' "$run")"
-	fi
-
-	# Manually create output directory
-	if [ "$handle_output" = 'mkdir' ] && [ -n "$output_dir" ]; then
-		run="$(printf 'mkdir -p DOUBLE_DASH_OUTPUT_DIR\n%s' "$run")"
-	fi
-
-	archive_path_arg="$(shell_quote_and_awk_sanitize "$archive_path")"
-	output_dir_arg="$(shell_quote_and_awk_sanitize "$output_dir")"
-	password_arg="$(shell_quote_and_awk_sanitize "$password")"
-
-	base_name_no_ext="$(basename -- "$archive_path" "$remove_suffix")"
-	case "$output_dir" in
-		'' )
-			output_path="$base_name_no_ext"
-			;;
-		*/ )
-			output_path="$output_dir$base_name_no_ext"
-			;;
-		* )
-			output_path="$output_dir/$base_name_no_ext"
-			;;
-	esac
-
-
-	# Special handling for force_output_dir_to_current_dir
-	# Might not need the leading ./ at this point
-	case "$output_path" in
-		./* )
-			output_path="${output_path##./}"
-			;;
-	esac
-
-	output_path_arg="$(shell_quote_and_awk_sanitize "$output_path")"
-
-	case "$archive_path_arg" in
-		-* )
-			dot_archive_path_arg="./$archive_path_arg"
-			double_dash_archive_path_prefix="-- "
-			;;
-		\'-* )
-			dot_archive_path_arg="'./${archive_path_arg##\'}"
-			double_dash_archive_path_prefix="-- "
-			;;
-		* )
-			dot_archive_path_arg="$archive_path_arg"
-			;;
-	esac
-
-	case "$output_path_arg" in
-		-* )
-			dot_output_path_arg="./$output_path_arg"
-			;;
-		\'-* )
-			dot_output_path_arg="'./${output_path_arg##\'}"
-			;;
-		* )
-			dot_output_path_arg="$output_path_arg"
-			;;
-	esac
-
-	case "$output_dir_arg" in
-		-* | \'-* )
-			double_dash_output_dir_prefix="-- "
-			;;
-	esac
-
-	archive_path_display="$(simplify_home "$archive_path_arg")"
-	dot_archive_path_display="$(simplify_home "$dot_archive_path_arg")"
-
-	output_dir_tilde="$(simplify_home "$output_dir_arg")"
-
-	output_path_display="$(simplify_home "$output_path_arg")"
-	dot_output_path_display="$(simplify_home "$dot_output_path_arg")"
-
-
-	# Careful with replacing prefixed values before replacing standard value
-	awk_program='{
-		gsub("DOT_ARCHIVE_PATH", dot_archive_path);
-		gsub("DOUBLE_DASH_ARCHIVE_PATH", double_dash_archive_path);
-		gsub("ARCHIVE_PATH", archive_path);
-
-		gsub("DOUBLE_DASH_OUTPUT_DIR", double_dash_output_dir);
-		gsub("NO_TILDE_OUTPUT_DIR", output_dir_no_tilde);
-		gsub("OUTPUT_DIR", output_dir);
-
-		gsub("DOT_OUTPUT_PATH", dot_output_path);
-		gsub("OUTPUT_PATH", output_path);
-		gsub("PASSWORD", password);
-		print;
-	}'
-
-	# Pretty string starts as bright blue, then reset at the end
-	# Arguments in pretty string are green, then the following text is bright blue
-	# Password in pretty string is red
-
-	pretty_command="$(printf "\033[38;5;12m%s\033[m" "$run" | awk \
-		-v archive_path="\033[38;5;2m$archive_path_display\033[38;5;12m" \
-		-v dot_archive_path="\033[38;5;2m$dot_archive_path_display\033[38;5;12m" \
-		-v double_dash_archive_path="$double_dash_archive_path_prefix\033[38;5;2m$archive_path_display\033[38;5;12m" \
-		-v output_dir="\033[38;5;2m$output_dir_tilde\033[38;5;12m" \
-		-v output_dir_no_tilde="\033[38;5;2m$output_dir_arg\033[38;5;12m" \
-		-v double_dash_output_dir="$double_dash_output_dir_prefix\033[38;5;2m$output_dir_tilde\033[38;5;12m" \
-		-v output_path="\033[38;5;2m$output_path_display\033[38;5;12m" \
-		-v dot_output_path="\033[38;5;2m$dot_output_path_display\033[38;5;12m" \
-		-v password="\033[38;5;1m\"\$PASSWORD\"\033[38;5;12m" \
-		"$awk_program")"
-
-
-	run_command="$(printf '%s' "$run" | awk \
-		-v archive_path="$archive_path_arg" \
-		-v dot_archive_path="$dot_archive_path_arg" \
-		-v double_dash_archive_path="$double_dash_archive_path_prefix$archive_path_arg" \
-		-v output_dir="$output_dir_arg" \
-		-v output_dir_no_tilde="$output_dir_arg" \
-		-v double_dash_output_dir="$double_dash_output_dir_prefix$output_dir_arg" \
-		-v output_path="$output_path_arg" \
-		-v dot_output_path="$dot_output_path_arg" \
-		-v password="$password_arg" \
-		"$awk_program")"
 }
 
 
-helpar_help_ls() {
+helpar_ls_help() {
 	cat <<-_EOF
 	Usage: helpar ls ARCHIVE [options...]
 	    or helpar list ARCHIVE [options...]
@@ -745,7 +288,8 @@ helpar_help_ls() {
 	_EOF
 }
 
-make_ls_command() {
+
+helpar_ls_get_opts() {
 	options=h1cSry
 	longopts=help,oneline,command,simulate,run,yes
 	parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
@@ -755,7 +299,7 @@ make_ls_command() {
 	while true; do
 		case "$1" in 
 			-h | --help )
-				helpar_help_ls
+				helpar_ls_help
 				exit 0
 				;;
 			-r | --run )
@@ -783,114 +327,533 @@ make_ls_command() {
 	done
 	
 	if [ -z "$archive_path" ]; then
-		helpar_help_ls
+		helpar_ls_help
 		exit 1
 	fi
+}
 
-	case "$archive_path" in
-		*.zip )
-			# Info-ZIP does not recognize --
+
+make_command() {
+	if [ -n "$only_print_tools" ]; then
+		only_run_command=y
+		run_command="echo $(get_tools_for_format "$archive_path")"
+		return
+	fi
+
+	tool="$(select_tool_for_format "$archive_path" "extract")"
+
+	case "$tool" in
+		unzip )
+			handle_delete_manually=y
 			archive_path_handle_dash=leading-dot
+
+			run="unzip"
+
+			[ -n "$force" ] && run="$(add_short_opt "$run" o)"
+			[ -n "$skip" ] && run="$(add_short_opt "$run" n)"
+			[ -n "$quiet" ] && run="$(add_short_opt "$run" q)"
+			
+			# Handle password which starts with -
+			case "$password" in
+				'' )
+					# No password
+					;;
+				* )
+					run="$run -PPASSWORD"
+					;;
+			esac
+
+			run="$run ARCHIVE_PATH"
+			[ -n "$output_dir" ] && run="$run -d OUTPUT_DIR"
+			;;
+		zipinfo )
+			archive_path_handle_dash=leading-dot
+
+			[ -n "$output_dir" ] && run="$run -d OUTPUT_DIR"
+
 			if [ -n "$one_line" ]; then
 				run="zipinfo -1 ARCHIVE_PATH"
 			else
 				run="zipinfo ARCHIVE_PATH"
 			fi
 			;;
-		*.rar )
+		unrar )
 			archive_path_handle_dash=double-dash
-			if [ -n "$one_line" ]; then
-				run="unrar lb ARCHIVE_PATH"
-			else
-				run="unrar l ARCHIVE_PATH"
+
+			if [ "$helpar_command" = 'ls' ]; then
+				if [ -n "$one_line" ]; then
+					run="unrar lb ARCHIVE_PATH"
+				else
+					run="unrar l ARCHIVE_PATH"
+				fi
+			elif [ "$helpar_command" = 'extract' ]; then
+				handle_delete_manually=y
+
+				run="unrar x"
+
+				[ -n "$force" ] && run="$run -o+"
+				[ -n "$skip" ] && run="$run -o-" # Skips files but sometimes exits with an error anyway, sigh...
+				[ -n "$quiet" ] && run="$run -idq"
+				[ -n "$password" ] && run="$run -pPASSWORD"
+
+				run="$run ARCHIVE_PATH"
+
+				# unrar always treats the last argument as the output dir,
+				# but only if it has a trailing slash
+				if [ -n "$output_dir" ]; then
+					output_dir="$output_dir/"
+					run="$run OUTPUT_DIR"
+				fi
 			fi
 			;;
-		*.tar.lrz )
+		tar )
+			if [ "$helpar_command" = 'ls' ]; then
+				archive_path_handle_dash='leading-dot'
+
+				case "$archive_path" in
+					*.tar.gz | *.tgz )
+						[ -n "$one_line" ] && run="tar tzf" || run="tar tzvf"
+						;;
+					*.tar.bz | *.tbz )
+						[ -n "$one_line" ] && run="tar tjf" || run="tar tjvf"
+						;;
+					* )
+						[ -n "$one_line" ] && run="tar tf" || run="tar tvf"
+						;;
+				esac
+				run="$run ARCHIVE_PATH"
+			elif [ "$helpar_command" = 'extract' ]; then
+				# We put the -C argument at the end, so we can't use --
+				archive_path_handle_dash='leading-dot'
+
+				handle_delete_manually=y
+				handle_output='mkdir'
+
+				use_standard_tar=y
+				use_standard_tar_stdin=n
+
+				case "$archive_path" in
+					*.tar.gz | *.tgz )
+						[ -n "$quiet" ] && run="tar xzf" || run="tar xzvf"
+						;;
+					*.tar.bz | *.tbz )
+						[ -n "$quiet" ] && run="tar xjf" || run="tar xjvf"
+						;;
+					* )
+						[ -n "$quiet" ] && run="tar xf" || run="tar xvf"
+						;;
+				esac
+	 
+				run="$run ARCHIVE_PATH"
+				[ -n "$skip" ] && run="$run --skip-old-files"
+				[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
+				[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
+			fi
+			;;
+		lrzuntar )
+			# Special case, not handled by GNU tar
+			# BUG?: man lrzip says it does not override by default, but lrzuntar does
+			# BUG?: lrzuntar can't handle --long options
+			# BUG?: can't specify password as arg
+			archive_path_handle_dash='double-dash'
+			output_dir_handle_dash='leading-dot'
+			handle_output='mkdir'
+
+			if [ -n "$force" ]; then
+				run="lrzuntar"
+				handle_delete_manually=y
+
+				if [ -n "$quiet" ]; then
+					# BUG
+					echo "Sorry, the --quiet option is not supported by lrzuntar." >&2
+					exit 1
+				fi
+				[ -n "$output_dir" ] && run="$run -O OUTPUT_DIR"
+				run="$run ARCHIVE_PATH"
+			
+				use_standard_tar=n
+			else
+				run="lrzcat"
+				[ -n "$delete" ] && run="$run --delete"
+				if [ -n "$quiet" ]; then
+					run="$run --very-quiet ARCHIVE_PATH | tar x"
+				else
+					run="$run ARCHIVE_PATH | tar xv"
+				fi
+
+				if [ -n "$skip" ]; then
+					run="$run --skip-old-files"
+				else
+					run="$run -k"
+				fi
+				[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
+			fi
+			;;
+		lrzcat )
+			# ls only
 			archive_path_handle_dash=double-dash
 			run="lrzcat --quiet ARCHIVE_PATH"
-			[ -n "$one_line" ] && run="$run | tar t" || run="$run | tar tv"
+			if [ -n "$one_line" ]; then
+				run="lrzcat --very-quiet ARCHIVE_PATH | tar t"
+			else
+				run="lrzcat --quiet ARCHIVE_PATH | tar tv"
+			fi
 			;;
-		*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
-			archive_path_handle_dash=leading-dot
+		bsdtar )
+			# We put the -C argument at the end, so we can't use --
+			archive_path_handle_dash='leading-dot'
+			output_dir_handle_dash='leading-dot'
+			if [ "$helpar_command" = 'extract' ]; then
+				handle_delete_manually=y
+				handle_output='mkdir'
+
+				[ -n "$quiet" ] && run="bsdtar xf" || run="bsdtar xvf"
+				[ -z "$force" ] && run="$run -k"
+				[ -n "$password" ] && run="$run --passphrase PASSWORD"
+
+				run="$run ARCHIVE_PATH"
+				[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
+			elif [ "$helpar_command" = 'ls' ]; then
+				[ -n "$one_line" ] && run="bsdtar tf" || run="bsdtar tvf"
+				run="$run ARCHIVE_PATH"
+			fi
+			;;
+		dpkg-deb )
+			archive_path_handle_dash='double-dash'
+			output_dir_handle_dash='double-dash-after-archive-path'
+			run="dpkg-deb"
+			if [ "$helpar_command" = 'extract' ]; then
+				handle_delete_manually=y
+				handle_skip_manually=dir
+				handle_force=always-skip
+
+				[ -n "$quiet" ] && run="$run --extract" || run="$run --vextract"
+				
+				if [ -n "$skip" ]; then
+					echo "Sorry, the --skip flag is not supported for deb." >&2
+					exit 1
+				fi
+				if [ -z "$output_dir" ]; then
+					if [ -z "$force" ]; then
+						echo "Sorry, extracting .deb packages to working directory might overwrite files" >&2
+						echo "Use --force or change --output-directory" >&2
+						exit 1
+					fi
+					output_dir="."
+				fi
+				run="$run ARCHIVE_PATH OUTPUT_DIR"
+			elif [ "$helpar_command" = 'ls' ]; then
+				run="$run --contents ARCHIVE_PATH"
+				[ -n "$one_line" ] && run="$run | cut -c51- | tail -n +2"
+			fi
+			;;
+		bunzip2 | gunzip | unxz | unlzma | lzip )
+			handle_output='mkdir'
+			handle_skip_manually=path
+
 			case "$archive_path" in
-				*.tar.gz | *.tgz )
-					[ -n "$one_line" ] && run="tar tzf" || run="tar tzvf"
+				*.bz )
+					archive_path_handle_dash='double-dash'
+					remove_suffix='.bz'
+					run_unzip="bunzip2"
+					run_cat="bzcat"
 					;;
-				*.tar.bz | *.tbz )
-					[ -n "$one_line" ] && run="tar tjf" || run="tar tjvf"
+				*.bz2 )
+					archive_path_handle_dash='double-dash'
+					remove_suffix='.bz2'
+					run_unzip="bunzip2"
+					run_cat="bzcat"
 					;;
-				* )
-					[ -n "$one_line" ] && run="tar tf" || run="tar tvf"
+				*.gz )
+					archive_path_handle_dash='double-dash'
+					remove_suffix='.gz'
+					run_unzip="gunzip"
+					run_cat="zcat"
+					;;
+				*.xz )
+					archive_path_handle_dash='double-dash'
+					remove_suffix='.xz'
+					run_unzip="unxz"
+					run_cat="xzcat"
+					;;
+				*.lzma )
+					archive_path_handle_dash='double-dash'
+					remove_suffix='.lzma'
+					run_unzip="unlzma"
+					run_cat="lzcat"
+					;;
+				*.lz )
+					archive_path_handle_dash='double-dash'
+					remove_suffix='.lz'
+					run_unzip="lzip -d"
+					run_cat="lzip -d --stdout"
 					;;
 			esac
+
+			force_output_dir_to_current_dir
+
+			if [ -n "$output_dir" ]; then
+				handle_delete_manually=y
+				handle_force=noclobber
+				run="$run_cat ARCHIVE_PATH > OUTPUT_PATH"
+			else
+				run="$run_unzip"
+				[ -z "$delete" ] && run="$run --keep"
+				[ -n "$force" ] && run="$run --force"
+				run="$run ARCHIVE_PATH"
+			fi
+			;;
+		unzstd )
+			archive_path_handle_dash='double-dash'
+			handle_skip_manually=path
+			output_dir_no_tilde=y
+			handle_output='mkdir'
+
+			remove_suffix='.zst'
+			run="unzstd"
+
+			force_output_dir_to_current_dir
+
+			[ -n "$quiet" ] && run="$run --quiet"
+			[ -n "$delete" ] && run="$run --rm"
+			[ -n "$force" ] && run="$run --force"
+			[ -n "$output_dir" ] && run="$run --output-dir-flat=OUTPUT_DIR"
+
 			run="$run ARCHIVE_PATH"
 			;;
-		*.deb )
-			archive_path_handle_dash=double-dash
-			run="dpkg-deb --contents ARCHIVE_PATH"
-			[ -n "$one_line" ] && run="$run | cut -c51- | tail -n +2"
+		unlz4 )
+			archive_path_handle_dash='double-dash'
+			output_path_handle_dash='double-dash-after-archive-path'
+			handle_skip_manually=path
+			handle_output='mkdir'
+
+			remove_suffix='.lz4'
+			run="unlz4"
+
+			force_output_dir_to_current_dir
+
+			[ -n "$quiet" ] && run="$run --quiet"
+			[ -n "$delete" ] && run="$run --rm"
+			[ -n "$force" ] && run="$run --force"
+			run="$run ARCHIVE_PATH"
+			[ -n "$output_dir" ] && run="$run OUTPUT_PATH"
 			;;
-		?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz | ?*.lz4 | ?*.lrz | ?*.zst | ?*.Z )
-			only_run_command=y
-			if [ -n "$one_line" ]; then
-				run="printf '%s\n' ARCHIVE_PATH | sed 's/\.[^.]*$//; s|[^/]*/||g'"
+		lrunzip )
+			archive_path_handle_dash='double-dash'
+			output_dir_handle_dash='leading-dot'
+			handle_skip_manually=path
+			handle_output='mkdir'
+
+			remove_suffix='.lrz'
+			run="lrunzip"
+
+			[ -n "$quiet" ] && run="$run --very-quiet"
+			[ -n "$delete" ] && run="$run --delete"
+			[ -n "$force" ] && run="$run --force"
+
+			force_output_dir_to_current_dir
+			if [ -n "$output_dir" ]; then
+				run="$run --outdir OUTPUT_DIR"
+			fi
+			run="$run ARCHIVE_PATH"
+			;;
+		lzop )
+			archive_path_handle_dash=double-dash
+			output_dir_no_tilde=y
+			if [ "$helpar_command" = 'extract' ]; then
+				handle_output='mkdir'
+
+				run="lzop -x"
+
+				[ -n "$quiet" ] && run="$run --quiet"
+				[ -n "$delete" ] && run="$run --delete"
+				[ -n "$force" ] && run="$run --force"
+				if [ -n "$skip" ]; then
+					echo "Sorry, the --skip flag is not supported for lzop." >&2
+					exit 1
+				fi
+
+				[ -n "$output_dir" ] && run="$run --path=OUTPUT_DIR"
+
+				run="$run ARCHIVE_PATH"
+			elif [ "$helpar_command" = 'ls' ]; then
+				must_cd=y
+				if [ -n "$one_line" ]; then
+					run="lzop --list --quiet -P ARCHIVE_PATH | cut -c40-"
+				else
+					run="lzop --ls -P ARCHIVE_PATH"
+				fi
+			fi
+			;;
+		unarj )
+			handle_delete_manually=y
+			archive_path_handle_dash='leading-dot'
+
+			if [ -n "$one_line" ] || [ -n "$quiet" ] || [ -n "$force" ] || [ -n "$skip" ] || [ -n "$output_dir" ]; then
+				echo "Sorry, unarj does not support any options." >&2
+				exit 1
+			fi
+
+			if [ "$helpar_command" = 'extract' ]; then
+				run="unarj x ARCHIVE_PATH"
+			elif [ "$helpar_command" = 'ls' ]; then
+				run="unarj l ARCHIVE_PATH"
+			fi
+			;;
+		lha )
+			archive_path_handle_dash=leading-dot
+			if [ "$helpar_command" = 'extract' ]; then
+				handle_delete_manually=y
+				output_dir_no_tilde=y
+				run="lha x"
+
+				# Free lhasa does not support short opts
+				[ -n "$quiet" ] && run="${run}q"
+				[ -n "$force" ] && run="${run}f"
+				if [ -n "$skip" ]; then
+					echo "Sorry, the --skip flag is not supported for lha." >&2
+				fi
+				[ -n "$output_dir" ] && run="${run}w=OUTPUT_DIR"
+
+				# The non-free lha supports --
+				run="$run ARCHIVE_PATH"
+			elif [ "$helpar_command" = 'ls' ]; then
+				# The non-free lha supports --
+				if [ -n "$one_line" ]; then
+					# this might be a better way to handle this,
+					# but only supported in non-free lha
+					#run="lha l -vq ARCHIVE_PATH | sed '0~2d'"
+					run="lha -lq ARCHIVE_PATH | cut -c52-"
+				else
+					run="lha -l ARCHIVE_PATH"
+				fi
+			fi
+			;;
+		cpio )
+			# BUG?: GNU cpio creates output directory automatically, but writes nothing and crashes
+			if [ "$helpar_command" = 'extract' ]; then
+				handle_delete_manually=y
+				[ -n "$delete" ] && archive_path_handle_dash="leading-dot"
+				output_dir_no_tilde=y
+
+				run="cpio -i"
+
+				[ -n "$quiet" ] && run="$run -d --quiet" || run="$run -vd"
+				[ -n "$force" ] && run="$run --unconditional"
+				[ -n "$output_dir" ] && run="$run --directory=OUTPUT_DIR"
+				
+				run="$run < ARCHIVE_PATH"
+			elif [ "$helpar_command" = 'ls' ]; then
+				if [ -n "$one_line" ]; then
+					run="cpio -t --quiet < ARCHIVE_PATH"
+				else
+					run="cpio -t -v < ARCHIVE_PATH"
+				fi
+			fi
+			;;
+		uncompress )
+			archive_path_handle_dash='leading-dot'
+			handle_skip_manually=path
+			handle_output='mkdir'
+
+			remove_suffix='.Z'
+			run="uncompress"
+
+			force_output_dir_to_current_dir
+
+			# Let's be strictly POSIX-compliant in the case of .Z
+			if [ -z "$delete" ] || [ -n "$output_dir" ]; then
+				handle_delete_manually=y
+				handle_force=noclobber
+				run="uncompress -c ARCHIVE_PATH > OUTPUT_PATH"
+			elif [ -n "$force" ]; then
+				run="uncompress -f ARCHIVE_PATH"
 			else
+				run="uncompress ARCHIVE_PATH"
+			fi
+			;;
+		7z )
+			archive_path_handle_dash='double-dash'
+			output_dir_no_tilde=y
+			if [ "$helpar_command" = 'extract' ]; then
+				handle_delete_manually=y
+
+				run="7z x"
+
+				[ -n "$force" ] && run="$run -aoa"
+				[ -n "$skip" ] && run="$run -aos"
+				[ -n "$output_dir" ] && run="$run -oOUTPUT_DIR"
+				[ -n "$password" ] && run="$run -pPASSWORD"
+				[ -n "$quiet" ] && run="$run -bd"
+
+				run="$run ARCHIVE_PATH"
+			elif [ "$helpar_command" = 'ls' ]; then
+				if [ -n "$one_line" ]; then
+					run="7z l -slt -ba ARCHIVE_PATH | grep '^Path = ' | cut -d' ' -f3-"
+				else
+					run="7z l ARCHIVE_PATH"
+				fi
+			fi
+			;;
+		echo )
+			if [ -n "$one_line" ]; then
+				run='filename=ARCHIVE_PATH; filename="${filename%.*}"; echo "${filename##*/}"'
+			else
+				only_run_command=y
 				run="echo 'ARCHIVE_PATH is just a single compressed file.'"
 			fi
-			;;
-		*.lzo )
-			archive_path_handle_dash=double-dash
-			must_cd=y
-			if [ -n "$one_line" ]; then
-				run="lzop --list --quiet -P ARCHIVE_PATH | cut -c40-"
-			else
-				run="lzop --ls -P ARCHIVE_PATH"
-			fi
-			;;
-		*.lha )
-			# The non-free lha supports --
-			archive_path_handle_dash=leading-dot
-			if [ -n "$one_line" ]; then
-				# this might be a better way to handle this,
-				# but only supported in non-free lha
-				#run="lha l -vq ARCHIVE_PATH | sed '0~2d'"
-				run="lha -lq ARCHIVE_PATH | cut -c52-"
-			else
-				run="lha -l ARCHIVE_PATH"
-			fi
-			;;
-		*.cpio )
-			if [ -n "$one_line" ]; then
-				run="cpio -t --quiet < ARCHIVE_PATH"
-			else
-				run="cpio -t -v < ARCHIVE_PATH"
-			fi
-			;;
-		*.arj )
-			if [ -n "$one_line" ]; then
-				echo "Sorry, the --oneline flag is not supported for ARJ." >&2
-			fi
-			run="unarj l ARCHIVE_PATH"
-			;;
-		* )
-			case "$archive_path" in
-				*.7z )
-					# Using 7z is perfectly fine
-					;;
-				* )
-					>&2 echo "Don't know the proper tool for $archive_path, let's just try 7z"
-					;;
-			esac
-
-			archive_path_handle_dash='double-dash'
-			if [ -n "$one_line" ]; then
-				run="7z l -slt -ba ARCHIVE_PATH | grep '^Path = ' | cut -d' ' -f3-"
-			else
-				run="7z l ARCHIVE_PATH"
-			fi
-			;;
 	esac
 
+
+	#
+	# Handling parameters for 'extract' command
+	# 
+	
+	if [ "$handle_force" = 'always-skip' ] && [ -z "$force" ]; then
+		skip=y
+	fi
+
+	# Manually check if file exists
+	if [ -n "$handle_skip_manually" ] && [ -n "$skip" ]; then
+		case "$handle_skip_manually" in
+			path )
+				output_path_handle_dash='leading-dot'
+				check_path="OUTPUT_PATH"
+				;;
+			dir )
+				output_dir_handle_dash='leading-dot'
+				check_path="OUTPUT_DIR"
+				;;
+		esac
+		# We still have to --delete even if we manually skip.
+		# handle_delete_manually is handled later.
+		if [ -n "$delete" ] && [ -z "$handle_delete_manually" ]; then
+			run="([ -e $check_path ] && rm ARCHIVE_PATH) || $run"
+		else
+			run="[ -e $check_path ] || $run"
+		fi
+		used_or=y
+	fi
+
+	# Manually remove archive on successful extraction
+	if [ -n "$handle_delete_manually" ] && [ -n "$delete" ]; then
+		if [ -n "$used_or" ]; then
+			run="($run) && rm ARCHIVE_PATH"
+		else
+			run="$run && rm ARCHIVE_PATH"
+		fi
+	fi
+
+	# 'set -o noclobber' to prevent overwriting files by default
+	if [ "$handle_force" = 'noclobber' ] && [ -z "$force" ] && [ -z "$skip" ]; then
+		run="$(printf 'set -o noclobber\n%s' "$run")"
+	fi
+
+	# Manually create output directory
+	if [ "$handle_output" = 'mkdir' ] && [ -n "$output_dir" ]; then
+		output_dir_handle_dash='leading-dot'
+		run="$(printf 'mkdir -p OUTPUT_DIR\n%s' "$run")"
+	fi
 
 	archive_dir="$(dirname -- "$archive_path")"
 	if [ -n "$must_cd" ]; then
@@ -909,43 +872,145 @@ make_ls_command() {
 		esac
 	fi
 
+	#
+	# Handling common parameters
+	# 
 
-	case "$archive_path" in
-		-* )
-			if [ "$archive_path_handle_dash" = 'double-dash' ]; then
-				archive_path_arg_prefix="-- "
-			elif [ "$archive_path_handle_dash" = 'leading-dot' ]; then
-				archive_path="./$archive_path"
-			fi
+	archive_path_arg="$(shell_quote_and_awk_sanitize "$archive_path")"
+	output_dir_arg="$(shell_quote_and_awk_sanitize "$output_dir")"
+	password_arg="$(shell_quote_and_awk_sanitize "$password")"
+	archive_dir_arg="$(shell_quote_and_awk_sanitize "$archive_dir")"
+
+	base_name_no_ext="$(basename -- "$archive_path" "$remove_suffix")"
+	case "$output_dir" in
+		'' )
+			output_path="$base_name_no_ext"
+			;;
+		./* )
+			# Special handling for force_output_dir_to_current_dir
+			# Won't need the leading ./ after this point
+			output_path="${output_path##./}"
+			;;
+		*/ )
+			output_path="$output_dir$base_name_no_ext"
 			;;
 		* )
+			output_path="$output_dir/$base_name_no_ext"
+			;;
+	esac
+
+	output_path_arg="$(shell_quote_and_awk_sanitize "$output_path")"
+
+	case "$archive_path_handle_dash" in
+		'double-dash' )
+			case "$archive_path_arg" in
+				-* | \'-* )
+					archive_path_prefix="-- "
+					;;
+			esac
+			;;
+		'leading-dot' )
+			case "$archive_path_arg" in
+				-* )
+					archive_path_arg="./$archive_path_arg"
+					;;
+				\'-* )
+					archive_path_arg="'./${archive_path_arg##\'}"
+					;;
+			esac
+			;;
+	esac
+
+	case "$output_path_handle_dash" in
+		'double-dash' )
+			case "$output_path_arg" in
+				-* | \'-* )
+					output_path_prefix="-- "
+					;;
+			esac
+			;;
+		'leading-dot' )
+			case "$output_path_arg" in
+				-* )
+					output_path_arg="./$output_path_arg"
+					;;
+				\'-* )
+					output_path_arg="'./${output_path_arg##\'}"
+					;;
+			esac
+			;;
+	esac
+
+	case "$output_dir_handle_dash" in
+		'double-dash' )
+			case "$output_dir_arg" in
+				-* | \'-* )
+					output_dir_prefix="-- "
+					;;
+			esac
+			;;
+		'double-dash-after-archive-path' )
+			case "$archive_path_prefix" in
+				--* )
+					# already used -- prefix
+					;;
+				* )
+					case "$output_dir_arg" in
+						-* | \'-* )
+							output_dir_prefix="-- "
+							;;
+					esac
+			esac
+			;;
+		'leading-dot' )
+			case "$output_dir_arg" in
+				-* )
+					output_dir_arg="./$output_dir_arg"
+					;;
+				\'-* )
+					output_dir_arg="'./${output_dir_arg##\'}"
+					;;
+			esac
 			;;
 	esac
 
 
-	archive_path_arg="$(shell_quote_and_awk_sanitize "$archive_path")"
 	archive_path_display="$(simplify_home "$archive_path_arg")"
-	archive_dir_arg="$(shell_quote_and_awk_sanitize "$archive_dir")"
+	[ "$output_dir_no_tilde" != y ] && output_dir_display="$(simplify_home "$output_dir_arg")"
+	output_path_display="$(simplify_home "$output_path_arg")"
 	archive_dir_display="$(simplify_home "$archive_dir_arg")"
 
-
 	awk_program='{
-		gsub("ARCHIVE_DIR", archive_dir);
 		gsub("ARCHIVE_PATH", archive_path);
+		gsub("ARCHIVE_DIR", archive_dir);
+		gsub("OUTPUT_PATH", output_path);
+		gsub("OUTPUT_DIR", output_dir);
+		gsub("PASSWORD", password);
 		print;
 	}'
 
-	pretty_command="$(printf '\033[38;5;12m%s\033[m' "$run" | awk \
-		-v archive_dir="\033[38;5;2m$archive_dir_display\033[38;5;12m" \
-		-v archive_path="$archive_path_arg_prefix\033[38;5;2m$archive_path_display\033[38;5;12m" \
+	# Pretty string starts as bright blue, then reset at the end
+	# Arguments in pretty string are green, then the following text is bright blue
+	# Password in pretty string is red
+
+	pretty_command="$(printf "\033[38;5;12m%s\033[m" "$run" | awk \
+		-v archive_path="$archive_path_prefix\033[38;5;2m$archive_path_display\033[38;5;12m" \
+		-v archive_dir="\033[38;5;2m$archive_path_display\033[38;5;12m" \
+		-v output_path="$output_path_prefix\033[38;5;2m$output_path_display\033[38;5;12m" \
+		-v output_dir="$output_dir_prefix\033[38;5;2m$output_dir_display\033[38;5;12m" \
+		-v password="\033[38;5;1m\"\$PASSWORD\"\033[38;5;12m" \
 		"$awk_program")"
 
 
 	run_command="$(printf '%s' "$run" | awk \
+		-v archive_path="$archive_path_prefix$archive_path_arg" \
 		-v archive_dir="$archive_dir_arg" \
-		-v archive_path="$archive_path_arg_prefix$archive_path_arg" \
+		-v output_path="$output_path_prefix$output_path_arg" \
+		-v output_dir="$output_dir_prefix$output_dir_arg" \
+		-v password="$password_arg" \
 		"$awk_program")"
 }
+
 
 
 
@@ -996,20 +1061,24 @@ while true; do
 	case "$1" in
 		e|x|extract )
 			shift
+			helpar_command="extract"
 			if [ -n "$helpar_help" ]; then
-				helpar_help_extract
+				helpar_extract_help
 			else
-				make_extract_command "$@"
+				helpar_extract_get_opts "$@"
+				make_command
 				do_command
 			fi
 			break
 			;;
 		l|ls|list )
 			shift
+			helpar_command="ls"
 			if [ -n "$helpar_help" ]; then
-				helpar_help_ls
+				helpar_ls_help
 			else
-				make_ls_command "$@"
+				helpar_ls_get_opts "$@"
+				make_command
 				do_command
 			fi
 			break
@@ -1019,8 +1088,8 @@ while true; do
 			shift
 			;;
 		-v|--version )
-			helpar_version=y
-			shift
+			helpar_print_version
+			exit 0
 			;;
 		-* )
 			echo "Unknown option: $1"
@@ -1028,16 +1097,11 @@ while true; do
 			exit 1
 			;;
 		"" )
-			if [ -n "$helpar_version" ]; then
-				helpar_print_version
+			helpar_help_generic
+			if [ -n "$helpar_help" ] || [ -n "$helpar_version" ]; then
 				exit 0
 			else
-				helpar_help_generic
-				if [ -n "$helpar_help" ] || [ -n "$helpar_version" ]; then
-					exit 0
-				else
-					exit 1
-				fi
+				exit 1
 			fi
 			;;
 		* )

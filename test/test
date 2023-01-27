@@ -96,7 +96,13 @@ test_extract() {
 	if [ "$test_delete" = y ]; then run="$run --delete"; fi
 
 	if [ "$test_output_dir" = y ]; then
-		run="$run --output-directory=output-dir"
+		if [ "$test_input" = 'dash' ]; then
+			output_dir="-dash-output-dir"
+			run="$run --output-directory=$output_dir"
+		else
+			output_dir="output-dir"
+			run="$run --output-directory=$output_dir"
+		fi
 	fi
 
 	if [ "$test_input" = 'dir' ]; then
@@ -114,20 +120,20 @@ test_extract() {
 	if [ "$format_single" = y ]; then
 		# Archive path may have changed, let's figure the new name
 		# for output file
-		extract_testfile="$("$HELPAR" ls -y1 -- "$file")"
+		extract_testfile="$("$HELPAR" ls -r1 -- "$file")"
 	else
 		extract_testfile='testfile'
 	fi
 	if [ "$test_output_dir" = y ]; then
-		extract_testfile="output-dir/$extract_testfile"
+		extract_testfile="$output_dir/$extract_testfile"
 	fi
 
 	if [ "$test_force" = 'skip' ]; then
-		if [ "$test_output_dir" = y ]; then mkdir output-dir; fi
+		if [ "$test_output_dir" = y ]; then mkdir -- "$output_dir"; fi
 		echo 'This should be skipped.' > "$extract_testfile"
 		run="$run --skip"
 	elif [ "$test_force" = 'overwrite' ]; then
-		if [ "$test_output_dir" = y ]; then mkdir output-dir; fi
+		if [ "$test_output_dir" = y ]; then mkdir -- "$output_dir"; fi
 		echo 'This should be overwritten.' > "$extract_testfile"
 		run="$run --force"
 	fi
@@ -153,7 +159,7 @@ test_extract() {
 	fi
 
 	if [ "$format_single" = n ]; then
-		if [ "$test_output_dir" = y ]; then cd output-dir; fi
+		if [ "$test_output_dir" = y ]; then cd -- "$output_dir"; fi
 
 		if [ "$test_force" = 'skip' ]; then
 			if [ "$(cat testfile)" != 'This should be skipped.' ]; then
@@ -227,6 +233,153 @@ prepare_format() {
 	fi
 }
 
+
+format=".zst"
+format_single=y
+if command -v zstd; then
+	prepare_format "$format"
+	zstd testfile
+
+	test_suite_ls testfile.zst
+
+	test_suite_extract testfile.zst
+else
+	skipped=y
+	skipped_list="$skipped_list zstd"
+	echo "Skipping: zstd not available."
+fi
+
+
+format=".gz"
+format_single=y
+if command -v gzip; then
+	prepare_format "$format"
+	gzip testfile
+
+	test_suite_ls testfile.gz
+
+	test_suite_extract testfile.gz
+else
+	skipped=y
+	skipped_list="$skipped_list gzip"
+	echo "Skipping: gzip not available."
+fi
+
+
+format=".xz"
+format_single=y
+if command -v xz; then
+	prepare_format "$format"
+	xz testfile
+
+	test_suite_ls testfile.xz
+
+	test_suite_extract testfile.xz
+else
+	skipped=y
+	skipped_list="$skipped_list xz"
+	echo "Skipping: xz not available."
+fi
+
+
+format=".lzma"
+format_single=y
+if command -v lzma; then
+	prepare_format "$format"
+	lzma testfile
+
+	test_suite_ls testfile.lzma
+
+	test_suite_extract testfile.lzma
+else
+	skipped=y
+	skipped_list="$skipped_list lzma"
+	echo "Skipping: lzma not available."
+fi
+
+
+format=".lz"
+format_single=y
+if command -v lzip; then
+	prepare_format "$format"
+	lzip testfile
+
+	test_suite_ls testfile.lz
+
+	test_suite_extract testfile.lz
+else
+	skipped=y
+	skipped_list="$skipped_list lzop"
+	echo "Skipping: lzip not available."
+fi
+
+
+format=".Z"
+format_single=y
+if command -v gzip && command -v uncompress; then
+	prepare_format "$format"
+	gzip testfile -S .Z
+
+	test_suite_ls testfile.Z
+
+	test_suite_extract testfile.Z
+else
+	skipped=y
+	skipped_list="$skipped_list gzip (and/or) uncompress"
+	echo "Skipping: gzip and uncompress not available."
+fi
+
+
+format="lzop"
+format_single=n
+if command -v lzop; then
+	prepare_format "$format"
+	lzop -P testfile 'testfile 2' -o test.lzo
+
+	test_suite_ls test.lzo
+
+	_hack_skip_test_skip=y
+	test_suite_extract test.lzo
+	unset _hack_skip_test_skip
+else
+	skipped=y
+	skipped_list="$skipped_list lzop"
+	echo "Skipping: lzop not available."
+fi
+
+
+format="RAR"
+format_single=n
+if command -v unrar; then
+	prepare_format "$format"
+	cp "$TEST_RAR" test.rar
+
+	test_suite_ls test.rar
+
+	test_suite_extract test.rar
+else
+	skipped=y
+	skipped_list="$skipped_list unrar"
+	echo "Skipping: unrar not available."
+fi
+
+
+format="ZIP"
+format_single=n
+if command -v zip; then
+	prepare_format "$format"
+	zip test.zip testfile testfile\ 2
+
+	test_suite_ls test.zip
+
+	test_suite_extract test.zip
+else
+	skipped=y
+	skipped_list="$skipped_list zip"
+	echo "Skipping: zip not available."
+fi
+
+
 if command -v lrzip; then
 	# .tar.lrz is a special case
 	format="lrzip with tar"
@@ -252,22 +405,6 @@ else
 	skipped=y
 	skipped_list="$skipped_list lrzip"
 	echo "Skipping: lrzip not available."
-fi
-
-
-format="RAR"
-format_single=n
-if command -v unrar; then
-	prepare_format "$format"
-	cp "$TEST_RAR" test.rar
-
-	test_suite_ls test.rar
-
-	test_suite_extract test.rar
-else
-	skipped=y
-	skipped_list="$skipped_list unrar"
-	echo "Skipping: unrar not available."
 fi
 
 
@@ -385,22 +522,6 @@ fi
 
 
 
-format="ZIP"
-format_single=n
-if command -v zip; then
-	prepare_format "$format"
-	zip test.zip testfile testfile\ 2
-
-	test_suite_ls test.zip
-
-	test_suite_extract test.zip
-else
-	skipped=y
-	skipped_list="$skipped_list zip"
-	echo "Skipping: zip not available."
-fi
-
-
 
 format="tar"
 format_single=n
@@ -443,119 +564,6 @@ else
 	echo "Skipping: bzip2 not available."
 fi
 
-
-format=".gz"
-format_single=y
-if command -v gzip; then
-	prepare_format "$format"
-	gzip testfile
-
-	test_suite_ls testfile.gz
-
-	test_suite_extract testfile.gz
-else
-	skipped=y
-	skipped_list="$skipped_list gzip"
-	echo "Skipping: gzip not available."
-fi
-
-
-format=".xz"
-format_single=y
-if command -v xz; then
-	prepare_format "$format"
-	xz testfile
-
-	test_suite_ls testfile.xz
-
-	test_suite_extract testfile.xz
-else
-	skipped=y
-	skipped_list="$skipped_list xz"
-	echo "Skipping: xz not available."
-fi
-
-
-format=".lzma"
-format_single=y
-if command -v lzma; then
-	prepare_format "$format"
-	lzma testfile
-
-	test_suite_ls testfile.lzma
-
-	test_suite_extract testfile.lzma
-else
-	skipped=y
-	skipped_list="$skipped_list lzma"
-	echo "Skipping: lzma not available."
-fi
-
-
-format=".lz"
-format_single=y
-if command -v lzip; then
-	prepare_format "$format"
-	lzip testfile
-
-	test_suite_ls testfile.lz
-
-	test_suite_extract testfile.lz
-else
-	skipped=y
-	skipped_list="$skipped_list lzop"
-	echo "Skipping: lzip not available."
-fi
-
-
-format=".Z"
-format_single=y
-if command -v gzip && command -v uncompress; then
-	prepare_format "$format"
-	gzip testfile -S .Z
-
-	test_suite_ls testfile.Z
-
-	test_suite_extract testfile.Z
-else
-	skipped=y
-	skipped_list="$skipped_list gzip (and/or) uncompress"
-	echo "Skipping: gzip and uncompress not available."
-fi
-
-
-format="lzop"
-format_single=n
-if command -v lzop; then
-	prepare_format "$format"
-	lzop -P testfile 'testfile 2' -o test.lzo
-
-	test_suite_ls test.lzo
-
-	_hack_skip_test_skip=y
-	test_suite_extract test.lzo
-	unset _hack_skip_test_skip
-else
-	skipped=y
-	skipped_list="$skipped_list lzop"
-	echo "Skipping: lzop not available."
-fi
-
-
-format=".zst"
-format_single=y
-if command -v zstd; then
-	prepare_format "$format"
-	zstd testfile
-
-	test_suite_ls testfile.zst
-
-	test_suite_extract testfile.zst
-else
-	skipped=y
-	skipped_list="$skipped_list zstd"
-	echo "Skipping: zstd not available."
-fi
 
 
 if [ -n "$skipped" ]; then
