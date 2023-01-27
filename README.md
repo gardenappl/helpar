@@ -29,6 +29,7 @@ Supported archive and compression formats:
 | `.xz` | `xz` (`unxz`, `xzcat`) | Single-file |
 | `.zst` | `zstd` (`unzstd`) | Single-file |
 | `.Z` | `uncompress` | Single-file |
+| `.pax` | | TODO |
 | Everything else | `7z` | N/A |
 
 * "Single-file" refers to compression tools which don't support archival (only work on single files). The `list` command is useless in these cases.
