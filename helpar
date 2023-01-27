@@ -36,6 +36,16 @@ simplify_home() {
 }
 
 
+add_short_opt() {
+	case "$1" in
+		*' '-[[:alnum:]]* )
+			printf '%s%s' "$1" "$2"
+			;;
+		* )
+			printf '%s -%s' "$1" "$2"
+	esac
+}
+
 
 # Helper function for tools like xzcat, bzcat
 # If the path to archive contains slashes (e.g. 'dir/file.xz')
@@ -49,6 +59,71 @@ force_output_dir_to_current_dir() {
 		esac
 	fi
 }
+
+
+try_tools() {
+	for tool in $@; do
+		if command -v "$tool" > /dev/null; then 
+			echo "$tool"
+			return
+		fi
+	done
+	>&2 echo "Error: no extraction tool installed"
+	exit 1
+}
+
+select_tool_for_format() {
+	case "$1" in
+		*.zip ) helpar_tools="unzip bsdtar 7z" ;;
+		*.rar ) helpar_tools="bsdtar unrar 7z" ;;
+		*.tar.lrz )
+			# In some cases we invoke 'tar' directly,
+			# but lrzuntar depends on 'tar' so we don't specify it
+			helpar_tools="lrzuntar bsdtar" 
+			;;
+		*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
+			helpar_tools="tar bsdtar 7z"
+			;;
+		*.7z )  helpar_tools="7z bsdtar" ;;
+		*.deb ) helpar_tools="dpkg-deb 7z" ;;
+		?*.bz ) helpar_tools="bsdtar bunzip2 7z" ;;
+		?*.bz2 ) 
+			helpar_tools="bunzip2 bsdtar 7z" 
+			;;
+		?*.gz ) helpar_tools="gunzip bsdtar 7z" ;;
+		?*.xz ) helpar_tools="unxz bsdtar" ;;
+		?*.lzma )
+			helpar_tools="unlzma bsdtar 7z"
+			;;
+		?*.lz ) helpar_tools="lzip bsdtar" ;;
+		?*.zst ) 
+			helpar_tools="unzstd bsdtar" 
+			;;
+		?*.lz4 )
+			helpar_tools="unlz4 bsdtar" 
+			;;
+		*.lrz ) helpar_tools="lrunzip" ;;
+		?*.lzo )
+			helpar_tools="lzop bsdtar"
+			;;
+		*.arj ) helpar_tools="unarj 7z" ;;
+		*.lha ) helpar_tools="lha bsdtar" ;;
+		*.cpio ) 
+			helpar_tools="cpio bsdtar"
+			;;
+		?*.Z )  helpar_tools="uncompress bsdtar" ;;
+		* )
+			>&2 echo "Warning: not entirely sure about this file format"
+			helpar_tools="bsdtar 7z" ;;
+	esac
+
+	>&2 printf 'Possible tools: \033[38;5;12m%s\033[m\n' "$(printf '%s' "$helpar_tools" | sed 's/ /, /g')"
+	helpar_tool="$(try_tools $helpar_tools)"
+	>&2 printf 'Selected tool: \033[38;5;12m%s\033[m\n' "$helpar_tool"
+	echo "$helpar_tool"
+}
+
+
 
 helpar_help_extract() {
 	cat <<-_EOF
@@ -137,16 +212,17 @@ make_extract_command() {
 		exit 1
 	fi
 
+	tool="$(select_tool_for_format "$archive_path" "extract")"
 
-	case "$archive_path" in
-		*.zip )
+	case "$tool" in
+		unzip )
 			handle_delete_manually=y
 
 			run="unzip"
 
-			[ -n "$force" ] && run="$run -o"
-			[ -n "$skip" ] && run="$run -n"
-			[ -n "$quiet" ] && run="$run -q"
+			[ -n "$force" ] && run="$(add_short_opt "$run" o)"
+			[ -n "$skip" ] && run="$(add_short_opt "$run" n)"
+			[ -n "$quiet" ] && run="$(add_short_opt "$run" q)"
 			
 			# Handle password which starts with -
 			case "$password" in
@@ -163,7 +239,7 @@ make_extract_command() {
 
 			[ -n "$output_dir" ] && run="$run -d OUTPUT_DIR"
 			;;
-		*.rar )
+		unrar )
 			handle_delete_manually=y
 
 			run="unrar x"
@@ -182,12 +258,13 @@ make_extract_command() {
 				run="$run OUTPUT_DIR"
 			fi
 			;;
-		*.tar | *.tar.* | *.tgz | *.tbz | *.txz | *.tlz | *.tzo )
+		tar | lrzuntar )
 			handle_delete_manually=y
 			handle_output='mkdir'
 
 			use_standard_tar=y
 			use_standard_tar_stdin=n
+
 			case "$archive_path" in
 				*.tar.gz | *.tgz )
 					[ -n "$quiet" ] && run="tar xzf" || run="tar xzvf"
@@ -197,19 +274,25 @@ make_extract_command() {
 					;;
 				*.tar.lrz )
 					# Special case, not handled by GNU tar
-					# BUG?: man lrzip says it does not override by default, but lrzuntar does?
+					# BUG?: man lrzip says it does not override by default, but lrzuntar does
 					# BUG?: lrzuntar can't handle --long options
 					# BUG?: can't specify password as arg
 					if [ -n "$force" ]; then
 						run="lrzuntar"
-						[ -n "$quiet" ] && run="$run -q"
+						unset handle_delete_manually
+						if [ -n "$quiet" ]; then
+							# BUG
+							echo "Sorry, the --quiet option is not supported by lrzuntar." >&2
+							exit 1
+						fi
+						[ -n "$delete" ] && run="$(add_short_opt "$run" D)"
 						[ -n "$output_dir" ] && run="$run -O OUTPUT_DIR"
 						run="$run DOUBLE_DASH_ARCHIVE_PATH"
 					
 						use_standard_tar=n
 					else
 						if [ -n "$quiet" ]; then
-							run="lrzcat --quiet DOUBLE_DASH_ARCHIVE_PATH | tar x"
+							run="lrzcat --very-quiet DOUBLE_DASH_ARCHIVE_PATH | tar x"
 						else
 							run="lrzcat DOUBLE_DASH_ARCHIVE_PATH | tar xv"
 						fi
@@ -227,13 +310,27 @@ make_extract_command() {
 				if [ "$use_standard_tar_stdin" = n ]; then
 					run="$run DOT_ARCHIVE_PATH"
 				fi
-
+ 
 				[ -n "$skip" ] && run="$run --skip-old-files"
 				[ -z "$skip" ] && [ -z "$force" ] && run="$run -k"
 				[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
 			fi
 			;;
-		*.deb )
+		bsdtar )
+			handle_delete_manually=y
+			handle_output='mkdir'
+
+			[ -n "$quiet" ] && run="bsdtar xf" || run="bsdtar xvf"
+
+			# Handle archive path which starts with -
+			# We put the -C argument at the end, so we can't use --
+			run="$run DOT_ARCHIVE_PATH"
+
+			[ -z "$force" ] && run="$run -k"
+			[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
+			[ -n "$password" ] && run="$run --passphrase PASSWORD"
+			;;
+		dpkg-deb )
 			handle_delete_manually=y
 			handle_skip_manually=dir
 			handle_force=always-skip
@@ -255,7 +352,7 @@ make_extract_command() {
 			fi
 			run="$run DOUBLE_DASH_ARCHIVE_PATH OUTPUT_DIR"
 			;;
-		?*.bz2 | ?*.bz | ?*.gz | ?*.xz | ?*.lzma | ?*.lz )
+		bunzip2 | gunzip | unxz | unlzma | lzip )
 			handle_output='mkdir'
 			handle_skip_manually=path
 
@@ -305,7 +402,7 @@ make_extract_command() {
 				run="$run DOUBLE_DASH_ARCHIVE_PATH"
 			fi
 			;;
-		?*.zst )
+		unzstd )
 			handle_skip_manually=path
 			handle_output='mkdir'
 
@@ -321,7 +418,7 @@ make_extract_command() {
 
 			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 			;;
-		?*.lz4 )
+		unlz4 )
 			handle_skip_manually=path
 			handle_output='mkdir'
 
@@ -336,14 +433,14 @@ make_extract_command() {
 			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 			[ -n "$output_dir" ] && run="$run DOT_OUTPUT_PATH"
 			;;
-		*.lrz )
+		lrunzip )
 			handle_skip_manually=path
 			handle_output='mkdir'
 
 			remove_suffix='.lrz'
 			run="lrunzip"
 
-			[ -n "$quiet" ] && run="$run --quiet"
+			[ -n "$quiet" ] && run="$run --very-quiet"
 			[ -n "$delete" ] && run="$run --delete"
 			[ -n "$force" ] && run="$run --force"
 
@@ -353,7 +450,7 @@ make_extract_command() {
 			fi
 			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 			;;
-		?*.lzo )
+		lzop )
 			handle_output='mkdir'
 
 			run="lzop -x"
@@ -370,17 +467,17 @@ make_extract_command() {
 
 			run="$run DOUBLE_DASH_ARCHIVE_PATH"
 			;;
-		*.arj )
+		unarj )
 			handle_delete_manually=y
 
 			if [ -n "$quiet" ] || [ -n "$force" ] || [ -n "$skip" ] || [ -n "$output_dir" ]; then
-				echo "Sorry, unarj does not support any flags." >&2
+				echo "Sorry, unarj does not support any options." >&2
 				exit 1
 			fi
 
 			run="unarj x ARCHIVE_PATH"
 			;;
-		*.lha )
+		lha )
 			handle_delete_manually=y
 
 			run="lha x"
@@ -396,7 +493,7 @@ make_extract_command() {
 			# The non-free lha supports --
 			run="$run DOT_ARCHIVE_PATH"
 			;;
-		*.cpio )
+		cpio )
 			# BUG?: GNU cpio creates output directory automatically, but writes nothing and crashes
 			handle_delete_manually=y
 
@@ -408,7 +505,7 @@ make_extract_command() {
 			
 			run="$run < ARCHIVE_PATH"
 			;;
-		?*.Z )
+		uncompress )
 			handle_skip_manually=path
 			handle_output='mkdir'
 
@@ -428,16 +525,7 @@ make_extract_command() {
 				run="uncompress DOT_ARCHIVE_PATH"
 			fi
 			;;
-		* )
-			case "$archive_path" in
-				*.7z )
-					# Using 7z is perfectly fine
-					;;
-				* )
-					>&2 echo "Don't know the proper tool for $archive_path, let's just try 7z"
-					;;
-			esac
-
+		7z )
 			handle_delete_manually=y
 
 			run="7z x"

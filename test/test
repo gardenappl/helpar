@@ -227,6 +227,49 @@ prepare_format() {
 	fi
 }
 
+if command -v lrzip; then
+	# .tar.lrz is a special case
+	format="lrzip with tar"
+	format_single=n
+	prepare_format "$format"
+	tar cvf test.tar testfile 'testfile 2'
+	lrzip test.tar
+
+	test_suite_ls test.tar.lrz
+
+	test_suite_extract test.tar.lrz
+
+
+	format=".lrz"
+	format_single=y
+	prepare_format "$format"
+	lrzip testfile
+
+	test_suite_ls testfile.lrz
+
+	test_suite_extract testfile.lrz
+else
+	skipped=y
+	skipped_list="$skipped_list lrzip"
+	echo "Skipping: lrzip not available."
+fi
+
+
+format="RAR"
+format_single=n
+if command -v unrar; then
+	prepare_format "$format"
+	cp "$TEST_RAR" test.rar
+
+	test_suite_ls test.rar
+
+	test_suite_extract test.rar
+else
+	skipped=y
+	skipped_list="$skipped_list unrar"
+	echo "Skipping: unrar not available."
+fi
+
 
 format="deb"
 format_single=n
@@ -341,33 +384,6 @@ else
 fi
 
 
-if command -v lrzip; then
-	# .tar.lrz is a special case
-	format="lrzip with tar"
-	format_single=n
-	prepare_format "$format"
-	tar cvf test.tar testfile 'testfile 2'
-	lrzip test.tar
-
-	test_suite_ls test.tar.lrz
-
-	test_suite_extract test.tar.lrz
-
-
-	format=".lrz"
-	format_single=y
-	prepare_format "$format"
-	lrzip testfile
-
-	test_suite_ls testfile.lrz
-
-	test_suite_extract testfile.lrz
-else
-	skipped=y
-	skipped_list="$skipped_list lrzip"
-	echo "Skipping: lrzip not available."
-fi
-
 
 format="ZIP"
 format_single=n
@@ -384,21 +400,6 @@ else
 	echo "Skipping: zip not available."
 fi
 
-
-format="RAR"
-format_single=n
-if command -v unrar; then
-	prepare_format "$format"
-	cp "$TEST_RAR" test.rar
-
-	test_suite_ls test.rar
-
-	test_suite_extract test.rar
-else
-	skipped=y
-	skipped_list="$skipped_list unrar"
-	echo "Skipping: unrar not available."
-fi
 
 
 format="tar"
