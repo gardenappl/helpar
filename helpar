@@ -66,9 +66,9 @@ get_tools_for_format() {
 		*.tar.lrz )
 			# In some cases we invoke 'tar' directly,
 			# but lrzuntar depends on 'tar' so we don't specify it
-			if [ "$helpar_command" == 'extract' ]; then
+			if [ "$helpar_command" = 'extract' ]; then
 				echo "lrzuntar bsdtar" 
-			elif [ "$helpar_command" == 'ls' ]; then
+			elif [ "$helpar_command" = 'ls' ]; then
 				echo "lrzcat bsdtar" 
 			fi
 			return
@@ -78,13 +78,16 @@ get_tools_for_format() {
 			return
 			;;
 		*.7z )  echo "7z bsdtar" ;;
-		*.deb ) echo "dpkg-deb 7z" ;;
+		*.deb ) echo "dpkg-deb" ;;
 		*.arj ) echo "unarj 7z" ;;
-		*.lha ) echo "lha bsdtar" ;;
+		*.lha ) echo "lha bsdtar 7z" ;;
 		?*.lzo ) 
-			echo "lzop bsdtar" ;;
+			# BUG with bsdtar: 
+			# bsdtar tvf test.lzo
+			# lzop: <stdin>: warning: this is a multipart archive (try option '-N')
+			echo "lzop" ;;
 		*.cpio ) 
-			echo "cpio bsdtar"
+			echo "cpio bsdtar 7z"
 			;;
 	esac
 
@@ -92,16 +95,15 @@ get_tools_for_format() {
 		extract )
 			case "$1" in
 				*.zip )   echo "unzip bsdtar 7z" ;;
-				?*.bz )   echo "bunzip2 bsdtar 7z" ;;
-				?*.bz2 )  echo "bunzip2 bsdtar 7z" ;;
-				?*.gz )   echo "gunzip bsdtar 7z" ;;
-				?*.xz )   echo "unxz bsdtar" ;;
-				?*.lzma ) echo "unlzma bsdtar 7z" ;;
-				?*.zst )  echo "unzstd bsdtar" ;;
-				?*.lz4 )  echo "unlz4 bsdtar" ;;
+				?*.bz2 )  echo "bunzip2 7z" ;;
+				?*.gz )   echo "gunzip 7z" ;;
+				?*.xz )   echo "unxz 7z" ;;
+				?*.lzma ) echo "unlzma 7z" ;;
+				?*.zst )  echo "unzstd 7z" ;;
+				?*.lz4 )  echo "unlz4 7z" ;;
 				?*.lrz )  echo "lrunzip" ;;
-				?*.lz )   echo "lzip bsdtar" ;;
-				?*.Z )    echo "uncompress bsdtar" ;;
+				?*.lz )   echo "lzip 7z" ;;
+				?*.Z )    echo "uncompress 7z" ;;
 			esac
 			;;
 		ls )
@@ -115,16 +117,15 @@ get_tools_for_format() {
 		cat )
 			case "$1" in
 				*.zip )   echo "unzip bsdtar 7z" ;;
-				?*.bz )   echo "bzcat bsdtar 7z" ;;
-				?*.bz2 )  echo "bzcat bsdtar 7z" ;;
-				?*.gz )   echo "zcat bsdtar 7z" ;;
-				?*.xz )   echo "xzcat bsdtar" ;;
-				?*.lzma ) echo "lzcat bsdtar 7z" ;;
-				?*.zst )  echo "zstdcat bsdtar" ;;
-				?*.lz4 )  echo "lz4cat bsdtar" ;;
+				?*.bz2 )  echo "bzcat 7z" ;;
+				?*.gz )   echo "zcat 7z" ;;
+				?*.xz )   echo "xzcat 7z" ;;
+				?*.lzma ) echo "lzcat 7z" ;;
+				?*.zst )  echo "zstdcat 7z" ;;
+				?*.lz4 )  echo "lz4cat 7z" ;;
 				?*.lrz )  echo "lrzcat" ;;
-				?*.lz )   echo "lzip bsdtar" ;;
-				?*.Z )    echo "uncompress bsdtar" ;;
+				?*.lz )   echo "lzip 7z" ;;
+				?*.Z )    echo "uncompress 7z" ;;
 			esac
 			;;
 	esac
@@ -290,8 +291,8 @@ helpar_ls_help() {
 
 
 helpar_ls_get_opts() {
-	options=h1cSry
-	longopts=help,oneline,command,simulate,run,yes
+	options=h1cSryt:T
+	longopts=help,oneline,command,simulate,run,yes,tool:,tools
 	parsed=$(getopt --options=$options --longoptions=$longopts --name "$0" -- "$@")
 	eval set -- "$parsed"
 
@@ -316,6 +317,14 @@ helpar_ls_get_opts() {
 				;;
 			-c | --command | -S | --simulate )
 				only_print_command=y
+				shift
+				;;
+			-t | --tool )
+				force_tool="$2"
+				shift 2
+				;;
+			-T | --tools )
+				only_print_tools=y
 				shift
 				;;
 			-- )
@@ -429,9 +438,6 @@ make_command() {
 				handle_delete_manually=y
 				handle_output='mkdir'
 
-				use_standard_tar=y
-				use_standard_tar_stdin=n
-
 				case "$archive_path" in
 					*.tar.gz | *.tgz )
 						[ -n "$quiet" ] && run="tar xzf" || run="tar xzvf"
@@ -470,8 +476,6 @@ make_command() {
 				fi
 				[ -n "$output_dir" ] && run="$run -O OUTPUT_DIR"
 				run="$run ARCHIVE_PATH"
-			
-				use_standard_tar=n
 			else
 				run="lrzcat"
 				[ -n "$delete" ] && run="$run --delete"
@@ -508,10 +512,9 @@ make_command() {
 				handle_output='mkdir'
 
 				[ -n "$quiet" ] && run="bsdtar xf" || run="bsdtar xvf"
+				run="$run ARCHIVE_PATH"
 				[ -z "$force" ] && run="$run -k"
 				[ -n "$password" ] && run="$run --passphrase PASSWORD"
-
-				run="$run ARCHIVE_PATH"
 				[ -n "$output_dir" ] && run="$run -C OUTPUT_DIR"
 			elif [ "$helpar_command" = 'ls' ]; then
 				[ -n "$one_line" ] && run="bsdtar tf" || run="bsdtar tvf"
@@ -712,6 +715,7 @@ make_command() {
 				[ -n "$force" ] && run="${run}f"
 				if [ -n "$skip" ]; then
 					echo "Sorry, the --skip flag is not supported for lha." >&2
+					exit 1
 				fi
 				[ -n "$output_dir" ] && run="${run}w=OUTPUT_DIR"
 
@@ -976,7 +980,11 @@ make_command() {
 
 
 	archive_path_display="$(simplify_home "$archive_path_arg")"
-	[ "$output_dir_no_tilde" != y ] && output_dir_display="$(simplify_home "$output_dir_arg")"
+	if [ "$output_dir_no_tilde" = y ]; then
+		output_dir_display="$output_dir_arg"
+	else
+		output_dir_display="$(simplify_home "$output_dir_arg")"
+	fi
 	output_path_display="$(simplify_home "$output_path_arg")"
 	archive_dir_display="$(simplify_home "$archive_dir_arg")"
 
@@ -995,7 +1003,7 @@ make_command() {
 
 	pretty_command="$(printf "\033[38;5;12m%s\033[m" "$run" | awk \
 		-v archive_path="$archive_path_prefix\033[38;5;2m$archive_path_display\033[38;5;12m" \
-		-v archive_dir="\033[38;5;2m$archive_path_display\033[38;5;12m" \
+		-v archive_dir="\033[38;5;2m$archive_dir_display\033[38;5;12m" \
 		-v output_path="$output_path_prefix\033[38;5;2m$output_path_display\033[38;5;12m" \
 		-v output_dir="$output_dir_prefix\033[38;5;2m$output_dir_display\033[38;5;12m" \
 		-v password="\033[38;5;1m\"\$PASSWORD\"\033[38;5;12m" \

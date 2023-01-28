@@ -3,8 +3,12 @@
 set -o errexit
 
 
-if [ "$1" = '--allow-skip' ]; then
+if [ "$1" = '--allow-skip' ] || [ "$2" == '--allow-skip' ]; then
 	allow_skip=y
+fi
+
+if [ "$1" = '--all-tools' ] || [ "$2" == '--all-tools' ]; then
+	test_all_tools=y
 fi
 
 get_abs_filename() {
@@ -28,7 +32,7 @@ printf 'testfile\ntestfile 2\n' > expected_output
 
 
 test_ls() {
-	run="$HELPAR ls --yes"
+	run="$HELPAR ls --yes --tool=$2"
 	file="$1"
 
 	# Prepare
@@ -44,15 +48,16 @@ test_ls() {
 	fi
 
 	# Run
+	echo "Running: $run"
 	( eval "$run" ) > output
 
 	# Assert
 	if [ "$test_oneline" = y ]; then
 		if [ "$format_single" = y ]; then
-			if [ "$(cat output)" != "$(basename -- "$file" "$format")" ]; then
+			if [ "$(cat output)" != 'testfile' ] && [ "$(cat output)" != "$(basename -- "$file" "$format_string")" ]; then
 				echo "Bad output:"
 				cat output
-				echo "Wanted: $(basename -- "$file" "$format")"
+				echo "Wanted: $(basename -- "$file" "$format_string") or 'testfile'"
 				exit 1
 			fi
 		else
@@ -78,18 +83,18 @@ test_suite_ls() {
 	echo
 	for test_oneline in n y; do
 		if [ -n "$_hack_skip_test_oneline" ] && [ "$test_oneline" = y ]; then
-			printf '\n=====\nSKIPPING --oneline tests for %s\n=====\n\n' "$format"
+			printf '\n=====\nSKIPPING --oneline tests for %s\n=====\n\n' "$format_string"
 			continue
 		fi
 		for test_dash in n y; do
 			printf 'Dash: %s, oneline: %s\n' "$test_dash" "$test_oneline"
-			test_ls "$1"
+			test_ls "$1" "$2"
 		done
 	done
 }
 
 test_extract() {
-	run="$HELPAR extract --yes"
+	run="$HELPAR extract --yes --tool=$2"
 	file="$1"
 
 	# Prepare
@@ -118,14 +123,16 @@ test_extract() {
 	fi
 	
 	if [ "$format_single" = y ]; then
-		# Archive path may have changed, let's figure the new name
+		# Archive path may have changed, let's figure out the new name
 		# for output file
 		extract_testfile="$("$HELPAR" ls -r1 -- "$file")"
 	else
 		extract_testfile='testfile'
 	fi
+	extract_testfile_alt='testfile'
 	if [ "$test_output_dir" = y ]; then
 		extract_testfile="$output_dir/$extract_testfile"
+		extract_testfile_alt="$output_dir/$extract_testfile_alt"
 	fi
 
 	if [ "$test_force" = 'skip' ]; then
@@ -147,6 +154,7 @@ test_extract() {
 	fi
 
 	# Run
+	echo "Running: $run"
 	( eval "$run" )
 
 	# Assert
@@ -166,11 +174,11 @@ test_extract() {
 				echo "File was not skipped."
 				exit 1
 			fi
-		elif [ "$(cat testfile)" != "Test file for $format" ]; then
+		elif [ "$(cat testfile)" != "Test file for $format_string" ]; then
 			echo "Wrong file content: $(cat testfile)"
 			exit 1
 		fi
-		if [ "$(cat 'testfile 2')" != "Second test file for $format" ]; then
+		if [ "$(cat 'testfile 2')" != "Second test file for $format_string" ]; then
 			echo "Wrong file content: $(cat testfile)"
 			exit 1
 		fi
@@ -179,11 +187,11 @@ test_extract() {
 	else
 		# Only one test file, but its name and path might have changed
 		if [ "$test_force" = 'skip' ]; then
-			if [ "$(cat -- "$extract_testfile")" != 'This should be skipped.' ]; then
+			if [ "$(cat -- "$extract_testfile")" != 'This should be skipped.' ] && [ "$(cat -- "$extract_testfile_alt")" != 'This should be skipped.' ]; then
 				echo "File was not skipped."
 				exit 1
 			fi
-		elif [ "$(cat -- "$extract_testfile")" != "Test file for $format" ]; then
+		elif [ "$(cat -- "$extract_testfile")" != "Test file for $format_string" ] && [ "$(cat -- "$extract_testfile_alt")" != "Test file for $format_string" ]; then
 			echo "Wrong file content: $(cat testfile)"
 			exit 1
 		fi
@@ -193,19 +201,19 @@ test_extract() {
 test_suite_extract() {
 	for test_force in n skip overwrite; do
 		if [ "$test_force" = 'overwrite' ] && [ -n "$_hack_skip_test_force" ]; then
-			printf '\n=====\nSKIPPING --force tests for %s\n=====\n\n' "$format"
+			printf '\n=====\nSKIPPING --force tests for %s\n=====\n\n' "$format_string"
 			continue
 		elif [ "$test_force" = 'skip' ] && [ -n "$_hack_skip_test_skip" ]; then
-			printf '\n=====\nSKIPPING --skip tests for %s\n=====\n\n' "$format"
+			printf '\n=====\nSKIPPING --skip tests for %s\n=====\n\n' "$format_string"
 			continue
 		fi
 		for test_input in n dir dash injection; do
 			for test_output_dir in n y; do
 				if [ "$test_output_dir" = y ] && [ -n "$_hack_skip_test_output_dir" ]; then
-					printf '\n=====\nSKIPPING --output-directory tests for %s\n=====\n\n' "$format"
+					printf '\n=====\nSKIPPING --output-directory tests for %s\n=====\n\n' "$format_string"
 					continue
 				elif [ "$test_force" != 'overwrite' ] && [ "$test_output_dir" = n ] && [ -n "$_hack_skip_test_output_dir_no_force" ]; then
-					printf '\n=====\nSKIPPING tests without --force and --output-directory for %s\n=====\n\n' "$format"
+					printf '\n=====\nSKIPPING tests without --force and --output-directory for %s\n=====\n\n' "$format_string"
 					continue
 				fi
 				for test_delete in n y; do
@@ -215,7 +223,7 @@ test_suite_extract() {
 
 					printf '\n'
 					echo "Force: $test_force, input: $test_input, output dir: $test_output_dir, delete: $test_delete"
-					test_extract "$1"
+					test_extract "$1" "$2"
 
 					cd ..
 					rm -r test
@@ -225,7 +233,7 @@ test_suite_extract() {
 	done
 }
 
-prepare_format() {
+prepare_input() {
 	echo "Testing $1..."
 	echo "Test file for $1" > testfile
 	if [ "$format_single" = n ]; then
@@ -233,337 +241,218 @@ prepare_format() {
 	fi
 }
 
+run_test_suites() {
+	ls_tools="$("$HELPAR" ls --tools "$1")"
+	for ls_tool in $ls_tools; do
+		if command -v "$ls_tool"; then
+			test_suite_ls "$1" "$ls_tool"
+		else
+			skipped=y
+			skipped_list="$skipped_list $ls_tool"
+			echo "Skipping $ls_tool: tool not available."
+		fi
 
-format=".zst"
-format_single=y
-if command -v zstd; then
-	prepare_format "$format"
-	zstd testfile
+		# Fallback tools (bsdtar, 7z, ...) should work for all cases
+		# so all _hack_s are unset at first iteration
+		unset _hack_skip_test_oneline
 
-	test_suite_ls testfile.zst
+		[ -z "$test_all_tools" ] && break
+		echo
+		echo
+		echo
+		echo
+		echo
+		echo "DONE WITH ls: $ls_tool"
+		echo
+		echo
+		echo
+		echo
+		echo
+	done
 
-	test_suite_extract testfile.zst
-else
-	skipped=y
-	skipped_list="$skipped_list zstd"
-	echo "Skipping: zstd not available."
-fi
+	extract_tools="$("$HELPAR" extract --tools "$1")"
+	for extract_tool in $extract_tools; do
+		if command -v "$extract_tool" && ( [ -z "$_hack_require_terminal" ] || [ -t 1 ] ); then
+			test_suite_extract "$1" "$extract_tool"
+		else
+			skipped=y
+			skipped_list="$skipped_list $extract_tool (might require output to terminal)"
+			if [ -n "$_hack_require_terminal" ]; then
+				echo "Skipping $extract_tool: tool not available or it requires output to terminal."
+			else
+				echo "Skipping $extract_tool: tool not available."
+			fi
+		fi
 
+		# Fallback tools (bsdtar, 7z, ...) should work for all cases
+		# so all _hack_s are unset at first iteration
+		unset _hack_skip_test_force
+		unset _hack_skip_test_output_dir
+		unset _hack_skip_test_output_dir_no_force
+		unset _hack_skip_test_skip
 
-format=".gz"
-format_single=y
-if command -v gzip; then
-	prepare_format "$format"
-	gzip testfile
-
-	test_suite_ls testfile.gz
-
-	test_suite_extract testfile.gz
-else
-	skipped=y
-	skipped_list="$skipped_list gzip"
-	echo "Skipping: gzip not available."
-fi
-
-
-format=".xz"
-format_single=y
-if command -v xz; then
-	prepare_format "$format"
-	xz testfile
-
-	test_suite_ls testfile.xz
-
-	test_suite_extract testfile.xz
-else
-	skipped=y
-	skipped_list="$skipped_list xz"
-	echo "Skipping: xz not available."
-fi
-
-
-format=".lzma"
-format_single=y
-if command -v lzma; then
-	prepare_format "$format"
-	lzma testfile
-
-	test_suite_ls testfile.lzma
-
-	test_suite_extract testfile.lzma
-else
-	skipped=y
-	skipped_list="$skipped_list lzma"
-	echo "Skipping: lzma not available."
-fi
-
-
-format=".lz"
-format_single=y
-if command -v lzip; then
-	prepare_format "$format"
-	lzip testfile
-
-	test_suite_ls testfile.lz
-
-	test_suite_extract testfile.lz
-else
-	skipped=y
-	skipped_list="$skipped_list lzop"
-	echo "Skipping: lzip not available."
-fi
+		[ -z "$test_all_tools" ] && break
+		echo
+		echo
+		echo
+		echo
+		echo
+		echo "DONE WITH extract: $extract_tool"
+		echo
+		echo
+		echo
+		echo
+		echo
+	done
+}
 
 
-format=".Z"
-format_single=y
-if command -v gzip && command -v uncompress; then
-	prepare_format "$format"
-	gzip testfile -S .Z
-
-	test_suite_ls testfile.Z
-
-	test_suite_extract testfile.Z
-else
-	skipped=y
-	skipped_list="$skipped_list gzip (and/or) uncompress"
-	echo "Skipping: gzip and uncompress not available."
-fi
-
-
-format="lzop"
+format_string="cpio"
 format_single=n
-if command -v lzop; then
-	prepare_format "$format"
-	lzop -P testfile 'testfile 2' -o test.lzo
-
-	test_suite_ls test.lzo
-
-	_hack_skip_test_skip=y
-	test_suite_extract test.lzo
-	unset _hack_skip_test_skip
-else
-	skipped=y
-	skipped_list="$skipped_list lzop"
-	echo "Skipping: lzop not available."
-fi
+prepare_input "$format_string"
+printf 'testfile\ntestfile 2' | cpio -o > test.cpio
+_hack_skip_test_output_dir=y
+run_test_suites test.cpio
 
 
-format="RAR"
-format_single=n
-if command -v unrar; then
-	prepare_format "$format"
-	cp "$TEST_RAR" test.rar
-
-	test_suite_ls test.rar
-
-	test_suite_extract test.rar
-else
-	skipped=y
-	skipped_list="$skipped_list unrar"
-	echo "Skipping: unrar not available."
-fi
-
-
-format="ZIP"
-format_single=n
-if command -v zip; then
-	prepare_format "$format"
-	zip test.zip testfile testfile\ 2
-
-	test_suite_ls test.zip
-
-	test_suite_extract test.zip
-else
-	skipped=y
-	skipped_list="$skipped_list zip"
-	echo "Skipping: zip not available."
-fi
-
-
-if command -v lrzip; then
-	# .tar.lrz is a special case
-	format="lrzip with tar"
-	format_single=n
-	prepare_format "$format"
-	tar cvf test.tar testfile 'testfile 2'
-	lrzip test.tar
-
-	test_suite_ls test.tar.lrz
-
-	test_suite_extract test.tar.lrz
-
-
-	format=".lrz"
-	format_single=y
-	prepare_format "$format"
-	lrzip testfile
-
-	test_suite_ls testfile.lrz
-
-	test_suite_extract testfile.lrz
-else
-	skipped=y
-	skipped_list="$skipped_list lrzip"
-	echo "Skipping: lrzip not available."
-fi
-
-
-format="deb"
-format_single=n
-if command -v dpkg-deb; then
-	prepare_format "$format"
-	mkdir -p testpkg/DEBIAN
-	mv testfile 'testfile 2' testpkg/
-	dpkg-deb -b --nocheck testpkg/ test.deb
-
-	test_suite_ls test.deb
-
-	_hack_skip_test_skip=y
-	_hack_skip_test_output_dir_no_force=y
-	test_suite_extract test.deb
-	unset _hack_skip_test_output_dir_no_force
-	unset _hack_skip_test_skip
-else
-	skipped=y
-	skipped_list="$skipped_list dpkg-deb"
-	echo "Skipping: dpkg-deb not available."
-fi
-
-
-format="LHA"
-format_single=n
-if command -v lha; then
-	prepare_format "$format"
-	cp "$TEST_LHA" .
-
-	test_suite_ls test.lha
-
-	_hack_skip_test_skip=y
-	test_suite_extract test.lha
-	unset _hack_skip_test_skip
-else
-	skipped=y
-	skipped_list="$skipped_list lha"
-	echo "Skipping: lha not available."
-fi
-
-
-
-format="cpio"
-format_single=n
-if command -v cpio; then
-	prepare_format "$format"
-	printf 'testfile\ntestfile 2' | cpio -o > test.cpio
-
-	test_suite_ls test.cpio
-
-	_hack_skip_test_output_dir=y
-	test_suite_extract test.cpio
-	unset _hack_skip_test_output_dir
-else
-	skipped=y
-	skipped_list="$skipped_list cpio"
-	echo "Skipping: cpio not available."
-fi
-
-
-format="ARJ"
-format_single=n
-if command -v unarj; then
-	prepare_format "$format"
-	cp "$TEST_ARJ" test.arj
-
-	_hack_skip_test_oneline=y
-	test_suite_ls test.arj
-	unset _hack_skip_test_oneline
-
-	_hack_skip_test_output_dir=y
-	_hack_skip_test_force=y
-	_hack_skip_test_skip=y
-	test_suite_extract test.arj
-	unset _hack_skip_test_skip
-	unset _hack_skip_test_force
-	unset _hack_skip_test_output_dir
-else
-	skipped=y
-	skipped_list="$skipped_list unarj"
-	echo "Skipping: unarj not available."
-fi
-
-
-format=".lz4"
+format_string=".Z"
 format_single=y
-# Not a BUG but bad design:
+prepare_input "$format_string"
+compress -f testfile
+run_test_suites testfile.Z
+
+
+format_string="lzop"
+format_single=n
+prepare_input "$format_string"
+lzop -P testfile 'testfile 2' -o test.lzo
+_hack_skip_test_skip=y
+run_test_suites test.lzo
+
+
+format_string="LHA"
+format_single=n
+cp "$TEST_LHA" .
+_hack_skip_test_skip=y
+run_test_suites test.lha
+
+
+format_string=".bz2"
+format_single=y
+prepare_input "$format_string"
+bzip2 testfile
+run_test_suites testfile.bz2
+
+
+format_string=".gz"
+format_single=y
+prepare_input "$format_string"
+gzip testfile
+run_test_suites testfile.gz
+
+
+format_string=".xz"
+format_single=y
+prepare_input "$format_string"
+xz testfile
+run_test_suites testfile.xz
+
+
+format_string=".lzma"
+format_single=y
+prepare_input "$format_string"
+lzma testfile
+run_test_suites testfile.lzma
+
+
+format_string=".lz"
+format_single=y
+prepare_input "$format_string"
+lzip testfile
+run_test_suites testfile.lz
+
+
+format_string=".lz4"
+format_single=y
+# Not a BUG (?), just bad design:
 # unlz4 automatically nicely chooses output file name,
 # unless stdout is not a terminal, in which case
 # the file gets piped into stdout and the script breaks.
-if [ -t 1 ]; then
-	if command -v lz4; then
-		prepare_format "$format"
-		lz4 testfile
-
-		test_suite_ls testfile.lz4
-
-		test_suite_extract testfile.lz4
-	else
-		skipped=y
-		skipped_list="$skipped_list lz4"
-		echo "Skipping: lz4 not available."
-	fi
-else
-	skipped=y
-	skipped_list="$skipped_list lz4 (is available but does not work when output is not a terminal)"
-	if command -v lz4; then
-		echo "Skipping: lz4 is available but output is not a terminal."
-	else
-		echo "Skipping: lz4 not available and output is not a terminal."
-	fi
-fi
+prepare_input "$format_string"
+lz4 testfile
+_hack_require_terminal=y
+run_test_suites testfile.lz4
 
 
-
-
-format="tar"
+format_string="RAR"
 format_single=n
-prepare_format "$format"
-tar cvf test.tar testfile testfile\ 2
-
-test_suite_ls test.tar
-
-test_suite_extract test.tar
+prepare_input "$format_string"
+cp "$TEST_RAR" test.rar
+run_test_suites test.rar
 
 
-format="7z"
+format_string="ZIP"
 format_single=n
-if command -v 7z; then
-	prepare_format "$format"
-	7z a test.7z testfile testfile\ 2
-
-	test_suite_ls test.7z
-
-	test_suite_extract test.7z
-else
-	skipped=y
-	skipped_list="$skipped_list 7z"
-	echo "Skipping: 7z not available."
-fi
+prepare_input "$format_string"
+zip test.zip testfile testfile\ 2
+run_test_suites test.zip
 
 
-format=".bz2"
+format_string="lrzip with tar"
+format_single=n
+prepare_input "$format_string"
+tar cvf test.tar testfile 'testfile 2'
+lrzip test.tar
+run_test_suites test.tar.lrz
+
+
+format_string=".lrz"
 format_single=y
-if command -v bzip2; then
-	prepare_format "$format"
-	bzip2 testfile
+prepare_input "$format_string"
+lrzip testfile
+run_test_suites testfile.lrz
 
-	test_suite_ls testfile.bz2
 
-	test_suite_extract testfile.bz2
-else
-	skipped=y
-	skipped_list="$skipped_list bzip2"
-	echo "Skipping: bzip2 not available."
-fi
+format_string="deb"
+format_single=n
+prepare_input "$format_string"
+mkdir -p testpkg/DEBIAN
+mv testfile 'testfile 2' testpkg/
+dpkg-deb -b --nocheck testpkg/ test.deb
+_hack_skip_test_skip=y
+_hack_skip_test_output_dir_no_force=y
+run_test_suites test.deb
 
+
+format_string="ARJ"
+format_single=n
+cp "$TEST_ARJ" test.arj
+_hack_skip_test_oneline=y
+_hack_skip_test_output_dir=y
+_hack_skip_test_force=y
+_hack_skip_test_skip=y
+run_test_suites test.arj
+
+
+format_string="tar"
+format_single=n
+prepare_input "$format_string"
+tar cvf test.tar testfile testfile\ 2
+run_test_suites test.tar
+
+
+format_string="7z"
+format_single=n
+prepare_input "$format_string"
+7z a test.7z testfile testfile\ 2
+run_test_suites test.7z
+
+
+format_string=".zst"
+format_single=y
+prepare_input "$format_string"
+zstd testfile
+run_test_suites testfile.zst
 
 
 if [ -n "$skipped" ]; then
