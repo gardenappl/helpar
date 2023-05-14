@@ -9,28 +9,33 @@ It's supposed to be a helpful and also educational tool. Suggests the simplest c
 
 Supported archive and compression formats:
 
-| File extenstion | Tool | Notes |
-| --------------: | :--- | ------------------ |
-| `.tar`, `.tar.*`, `.tgz`, `.tbz`, `.txz`, `.tlz`, `.tzo` | `tar` |
-| `.zip` | `unzip` |
-| `.rar` | `unrar` |
-| `.7z` | `7z` |
-| `.arj` | `unarj` | Very limited support |
-| `.bz2`, `.bz` | `bzip2` (`bunzip2`, `bzcat`) | Single-file |
-| `.cpio` | `cpio` |
-| `.deb` | `dpkg-deb` | Limited support |
-| `.gz` | `gzip` (`gunzip2`, `zcat`) | Single-file |
-| `.lha` | `lha` or `lhasa` | Limited support |
-| `.lrz` | `lrzip` (`lrunzip`, `lrzcat`) | Single-file |
-| `.lz` | `lzip` | Single-file |
-| `.lz4` | `lz4` (`unlz4`) | Single-file |
-| `.lzma` | `xz` (`unlzma`, `lzcat`) | Single-file |
-| `.lzo` | `lzop` | Limited support |
-| `.xz` | `xz` (`unxz`, `xzcat`) | Single-file |
-| `.zst` | `zstd` (`unzstd`) | Single-file |
-| `.Z` | `uncompress` | Single-file |
-| `.pax` | | TODO |
-| Everything else | `7z` | N/A |
+|                      File extenstion                     | Tools |
+|                      --------------:                     | :--- |
+| `.tar`, `.tar.*`, `.tgz`, `.tbz`, `.txz`, `.tlz`, `.tzo` | `tar`, `bsdtar`, `7z` |
+| `.zip`                                                   | `unzip` (`zipinfo`), `bsdtar`, `7z` |
+| `.rar`                                                   | `unrar`, `bsdtar`, `7z` |
+| `.7z`                                                    | `7z`, `bsdtar` |
+| `.arj`                                                   | `unarj`², `7z` |
+| `.bz2`³, `.bz`³                                          | `bzip2` (`bunzip2`, `bzcat`), `7z`
+| `.cpio`                                                  | `cpio`, `bsdtar`, `7z` |
+| `.deb`                                                   | `dpkg-deb`¹ |
+| `.gz`                                                    | `gzip` (`gunzip2`, `zcat`), `7z` |
+| `.lha`                                                   | `lha`¹, `lhasa`¹, `bsdtar`, `7z` |
+| `.lrz`³                                                  | `lrzip` (`lrunzip`, `lrzcat`) |
+| `.lz`³                                                   | `lzip`, `7z` |
+| `.lz4`³                                                  | `lz4` (`unlz4`), `7z` |
+| `.lzma`³                                                 | `xz` (`unlzma`, `lzcat`), `7z` |
+| `.lzo`                                                   | `lzop`¹ |
+| `.xz`³                                                   | `xz` (`unxz`, `xzcat`), `7z` |
+| `.zst`³                                                  | `zstd` (`unzstd`), `7z` |
+| `.exe` (PE)                                              | `7z` |
+| `.Z`³                                                    | `uncompress`, `7z` |
+| `.pax`                                                   | TODO |
+| [`.hrx`](https://github.com/google/hrx)                  | TODO |
+| Others (fallback)                                        | `bsdtar`, `7z` |
 
-* "Single-file" refers to compression tools which don't support archival (only work on single files). The `list` command is useless in these cases.
+Notes:
+1. Tool with limited support.
+2. Tool with very limited support.
+3. Single-file compression format. Sometimes these compression formats can store a filename, sometimes they don't (in which case the `list` command is useless).
 

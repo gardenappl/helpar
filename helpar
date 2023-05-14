@@ -89,6 +89,7 @@ get_tools_for_format() {
 		*.cpio ) 
 			echo "cpio bsdtar 7z"
 			;;
+		*.exe ) echo "7z" ;;
 	esac
 
 	case "$helpar_command" in
@@ -152,23 +153,27 @@ select_tool_for_format() {
 	helpar_tools="$(get_tools_for_format "$1")"
 	if [ -n "$only_print_tools" ] && [ -z "$helpar_tools" ]; then
 		if [ -z "$quiet" ]; then
-			>&2 printf 'Error: not familiar with this file format.'
+			>&2 printf 'Error: not familiar with this file format.\n'
 		fi
 		exit 1
 	fi
 
-	if [ -z "$only_run_command" ]; then
-		if [ -n "$helpar_tools" ]; then
-			>&2 printf 'Possible tools: \033[38;5;12m%s\033[m\n' "$(printf '%s' "$helpar_tools" | sed 's/ /, /g')"
-		else
-			>&2 printf 'Warning: not familiar with this file format. Will try bsdtar or 7z.'
-			helpar_tools="bsdtar 7z"
+	if [ -z "$helpar_tools" ]; then
+		if [ -z "$quiet" ]; then
+			>&2 printf 'Warning: not familiar with this file format.\n'
 		fi
+		helpar_tools="bsdtar 7z"
+	fi
+	if [ -z "$only_run_command" ]; then
+		>&2 printf 'Possible tools: \033[38;5;12m%s\033[m\n' "$(printf '%s' "$helpar_tools" | sed 's/ /, /g')"
 	fi
 
 	helpar_tool="$(try_tools $helpar_tools)"
 	if [ -z "$only_run_command" ]; then
-		>&2 printf 'Selected tool: \033[38;5;12m%s\033[m\n' "$helpar_tool"
+		if [ "$helpar_tool" != "$helpar_tools" ]; then
+			>&2 printf 'Selected tool: \033[38;5;12m%s\033[m' "$helpar_tool"
+			>&2 printf ' (use --tool to change the selection)\n'
+		fi
 	fi
 	echo "$helpar_tool"
 }
@@ -203,7 +208,7 @@ helpar_extract_get_opts() {
 	eval set -- "$parsed"
 
 
-	while true; do
+	while [ -n "$1" ]; do
 		case "$1" in 
 			-h | --help )
 				helpar_extract_help
@@ -256,7 +261,28 @@ helpar_extract_get_opts() {
 				;;
 			-- )
 				shift
-				archive_path="$1"
+				while [ -n "$1" ]; do
+					if ! [ -e "$1" ]; then
+						if [ -n "$output_dir" ]; then
+							>&2 printf "Error: %s does not exist." "$1"
+							exit 1
+						fi
+						output_dir="$1"
+					elif [ -d "$1" ]; then
+						if [ -n "$output_dir" ]; then
+							>&2 echo "Error: specified multiple directories"
+							exit 1
+						fi
+						output_dir="$1"
+					else
+						if [ -n "$archive_path" ]; then
+							>&2 echo "Error: helpar only handles one archive at a time."
+							exit 1
+						fi
+						archive_path="$1"
+					fi
+					shift
+				done
 				break
 				;;
 		esac
@@ -1047,7 +1073,7 @@ do_command() {
 helpar_print_usage() {
 	cat <<-_EOF
 	Available commands:
-	    c, cat        Print out a single file from an archive
+	    c, cat        (WIP) Print out a single file from an archive
 	    e, x, extract Extract files from an archive, or decompress a compressed file
 	    l, ls, list   List files in an archive, and other information
 	_EOF
